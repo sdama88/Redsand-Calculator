@@ -1,0 +1,3 @@
+gpu_type,redbox_model,monthly_price_usd,power_kw_per_gpu
+L40S,RedBox One,8500,0.45
+H100,RedBox Max,95000,0.7

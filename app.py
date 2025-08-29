@@ -15,11 +15,11 @@ ADMIN_EMAIL = "sdama@redsand.ai"
 
 @st.cache_data
 def load_data():
-    gpu_specs = pd.read_excel("Redsand_Calculator_Backend_Template.xlsx", sheet_name="gpu_specs")
-    prebuilt_configs = pd.read_excel("Redsand_Calculator_Backend_Template.xlsx", sheet_name="prebuilt_configs")
-    use_cases = pd.read_excel("Redsand_Calculator_Backend_Template.xlsx", sheet_name="use_cases")
-    partner_codes = pd.read_excel("Redsand_Calculator_Backend_Template.xlsx", sheet_name="partner_codes")
-    return gpu_specs, prebuilt_configs, use_cases, partner_codes
+    workloads = pd.read_csv("workloads.csv")
+    upgrade_rules = pd.read_csv("gpu_upgrade_rules.csv")
+    pricing = pd.read_csv("pricing.csv")
+    gpu_configs = pd.read_csv("gpu_configs.csv")
+    return workloads, upgrade_rules, pricing, gpu_configs
 
 gpu_specs, prebuilt_configs, use_cases, partner_codes = load_data()
 

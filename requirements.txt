@@ -1,6 +1,4 @@
 streamlit
-gspread
-oauth2client
 pandas
-plotly
-Pillow
+openpyxl
+reportlab

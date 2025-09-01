@@ -57,7 +57,14 @@ if st.session_state['logged_in']:
             users = st.number_input("Number of Concurrent Users", min_value=1, step=1)
 
             row = workloads[workloads["workload_name"] == use_case].iloc[0]
-            base_gpu = row["gpu_type"]
+
+            # Use RedBox Voice as default for Voicebot
+            if use_case == "Voicebot":
+                default_config = configs[configs["configuration_name"] == "RedBox Voice"]
+                base_gpu = default_config.iloc[0]["gpu_type"] if not default_config.empty else row["gpu_type"]
+            else:
+                base_gpu = row["gpu_type"]
+
             users_per_box = row["users_per_gpu"]
 
             # Apply silent GPU upgrade
@@ -74,7 +81,6 @@ if st.session_state['logged_in']:
                 selected_config = matching_configs.iloc[0]["configuration_name"]
                 num_boxes = max(1, int(users / users_per_box))
 
-                # Pricing
                 price_row = pricing[pricing["configuration_name"] == selected_config]
                 if price_row.empty:
                     st.error(f"No pricing found for {selected_config}.")

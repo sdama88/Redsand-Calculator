@@ -48,8 +48,11 @@ if st.button("Login"):
         else:
             st.error("Invalid partner code or password.")
 def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
+    now = datetime.now()
     log_row = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": now.isoformat(),
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M:%S"),
         "partner_code": partner_code,
         "partner_name": partner_name,
         "mode": mode,

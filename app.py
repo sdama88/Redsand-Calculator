@@ -84,9 +84,9 @@ if st.session_state['logged_in']:
             if use_case == "Voicebot":
                 selected_config = "RedBox Voice"
                 config_row = configs[configs["configuration_name"] == selected_config].iloc[0]
-                base_gpu = config_row["gpu_type"]
-                final_gpu = base_gpu
+                final_gpu = config_row["gpu_type"]
                 users_per_box = row["users_per_gpu"]
+                base_gpu = final_gpu  # skip upgrade rules
             else:
                 base_gpu = row["gpu_type"]
                 users_per_box = row["users_per_gpu"]

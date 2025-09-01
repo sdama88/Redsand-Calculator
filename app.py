@@ -5,13 +5,10 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
-import smtplib
-from email.message import EmailMessage
 import os
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
 ADMIN_EMAIL = "sdama@redsand.ai"
-REDSAND_EMAIL = "sdama@redsand.ai"
 
 @st.cache_data
 def load_data():
@@ -65,22 +62,6 @@ def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty
         log_df = pd.DataFrame([log_row])
     log_df.to_csv("config_log.csv", index=False)
 
-def send_email_notification(partner_name, partner_code, config, pdf_filename):
-    try:
-        msg = EmailMessage()
-        msg["Subject"] = f"New Redsand Config from {partner_name}"
-        msg["From"] = "noreply@redsand.ai"
-        msg["To"] = REDSAND_EMAIL
-        msg.set_content(f"Partner: {partner_name} ({partner_code})\nConfiguration: {config}\nPDF: {pdf_filename}")
-
-        with open(pdf_filename, "rb") as f:
-            msg.add_attachment(f.read(), maintype="application", subtype="pdf", filename=pdf_filename)
-
-        with smtplib.SMTP("localhost") as server:
-            server.send_message(msg)
-    except Exception as e:
-        st.warning(f"Email could not be sent: {e}")
-
 if st.session_state['logged_in']:
     if st.session_state['admin']:
         st.subheader("🔧 Admin Panel")
@@ -102,65 +83,68 @@ if st.session_state['logged_in']:
             if use_case == "Voicebot":
                 default_config = configs[configs["configuration_name"] == "RedBox Voice"]
                 base_gpu = default_config.iloc[0]["gpu_type"] if not default_config.empty else row["gpu_type"]
+                users_per_box = row["users_per_gpu"]
+                selected_config = "RedBox Voice"
             else:
                 base_gpu = row["gpu_type"]
-            users_per_box = row["users_per_gpu"]
+                users_per_box = row["users_per_gpu"]
+                selected_config = None
 
             upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
             final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
 
-            matching_configs = configs[configs["gpu_type"] == final_gpu]
-            if matching_configs.empty:
-                st.error(f"No configuration available for GPU type {final_gpu}.")
-            else:
+            if not selected_config:
+                matching_configs = configs[configs["gpu_type"] == final_gpu]
+                if matching_configs.empty:
+                    st.error(f"No configuration available for GPU type {final_gpu}.")
+                    st.stop()
                 selected_config = matching_configs.iloc[0]["configuration_name"]
-                num_boxes = max(1, int(users / users_per_box))
 
-                price_row = pricing[pricing["configuration_name"] == selected_config]
-                if price_row.empty:
-                    st.error(f"No pricing found for {selected_config}.")
-                else:
-                    price_per_box = price_row["monthly_price_usd"].values[0]
-                    monthly = price_per_box * num_boxes
-                    yearly = monthly * 12
-                    total_3yr = yearly * 3
+            num_boxes = max(1, int(users / users_per_box))
+            price_row = pricing[pricing["configuration_name"] == selected_config]
+            if price_row.empty:
+                st.error(f"No pricing found for {selected_config}.")
+            else:
+                price_per_box = price_row["monthly_price_usd"].values[0]
+                monthly = price_per_box * num_boxes
+                yearly = monthly * 12
+                total_3yr = yearly * 3
 
-                    st.success("Configuration Recommended")
-                    st.write(f"**Configuration:** {selected_config}")
-                    st.write(f"**GPU Type:** {final_gpu}")
-                    st.write(f"**Boxes Needed:** {num_boxes}")
-                    st.metric("💰 Monthly", f"${monthly:,.0f}")
-                    st.metric("📅 Yearly", f"${yearly:,.0f}")
-                    st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+                st.success("Configuration Recommended")
+                st.write(f"**Configuration:** {selected_config}")
+                st.write(f"**GPU Type:** {final_gpu}")
+                st.write(f"**Boxes Needed:** {num_boxes}")
+                st.metric("💰 Monthly", f"${monthly:,.0f}")
+                st.metric("📅 Yearly", f"${yearly:,.0f}")
+                st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
 
-                    filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-                    doc = SimpleDocTemplate(filename, pagesize=A4)
-                    styles = getSampleStyleSheet()
-                    story = [Paragraph("Redsand Partner Configuration Summary", styles['Title']), Spacer(1, 12)]
+                filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+                doc = SimpleDocTemplate(filename, pagesize=A4)
+                styles = getSampleStyleSheet()
+                story = [Paragraph("Redsand Partner Configuration Summary", styles['Title']), Spacer(1, 12)]
 
-                    data = [
-                        ["Partner", st.session_state['partner_name']],
-                        ["Use Case", use_case],
-                        ["GPU Type", final_gpu],
-                        ["Boxes Needed", num_boxes],
-                        ["Configuration", selected_config],
-                        ["Monthly Cost", f"${monthly:,.0f}"],
-                        ["Yearly Cost", f"${yearly:,.0f}"],
-                        ["3-Year Total", f"${total_3yr:,.0f}"]
-                    ]
-                    table = Table(data, hAlign='LEFT')
-                    table.setStyle(TableStyle([
-                        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                    ]))
-                    story.append(table)
-                    doc.build(story)
+                data = [
+                    ["Partner", st.session_state['partner_name']],
+                    ["Use Case", use_case],
+                    ["GPU Type", final_gpu],
+                    ["Boxes Needed", num_boxes],
+                    ["Configuration", selected_config],
+                    ["Monthly Cost", f"${monthly:,.0f}"],
+                    ["Yearly Cost", f"${yearly:,.0f}"],
+                    ["3-Year Total", f"${total_3yr:,.0f}"]
+                ]
+                table = Table(data, hAlign='LEFT')
+                table.setStyle(TableStyle([
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ]))
+                story.append(table)
+                doc.build(story)
 
-                    with open(filename, "rb") as f:
-                        st.download_button("📄 Download PDF", f, file_name=filename)
+                with open(filename, "rb") as f:
+                    st.download_button("📄 Download PDF", f, file_name=filename)
 
-                    log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Auto", use_case, selected_config, final_gpu, num_boxes, monthly, yearly, total_3yr, filename)
-                    send_email_notification(st.session_state['partner_name'], st.session_state['partner_code'], selected_config, filename)
+                log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Auto", use_case, selected_config, final_gpu, num_boxes, monthly, yearly, total_3yr, filename)
 
         elif mode == "✋ Manual Selection":
             selected_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique())
@@ -206,4 +190,3 @@ if st.session_state['logged_in']:
                     st.download_button("📄 Download PDF", f, file_name=filename)
 
                 log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Manual", "Manual", selected_config, "", quantity, monthly, yearly, total_3yr, filename)
-                send_email_notification(st.session_state['partner_name'], st.session_state['partner_code'], selected_config, filename)

@@ -80,15 +80,14 @@ if st.session_state['logged_in']:
             users = st.number_input("Number of Concurrent Users", min_value=1, step=1)
 
             row = workloads[workloads["workload_name"] == use_case].iloc[0]
-            if use_case == "Voicebot":
-                default_config = configs[configs["configuration_name"] == "RedBox Voice"]
-                base_gpu = default_config.iloc[0]["gpu_type"] if not default_config.empty else row["gpu_type"]
-                users_per_box = row["users_per_gpu"]
-                selected_config = "RedBox Voice"
-            else:
-                base_gpu = row["gpu_type"]
-                users_per_box = row["users_per_gpu"]
-                selected_config = None
+          if use_case == "Voicebot":
+    selected_config = "RedBox Voice"
+    config_row = configs[configs["configuration_name"] == selected_config].iloc[0]
+    base_gpu = config_row["gpu_type"]
+    users_per_box = workloads[workloads["workload_name"] == use_case].iloc[0]["users_per_gpu"]
+    final_gpu = base_gpu  # no upgrade
+else:
+    # normal logic
 
             upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
             final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu

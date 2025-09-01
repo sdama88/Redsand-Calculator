@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.lib.units import inch
 import os
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
@@ -16,10 +17,10 @@ def load_data():
     upgrade_rules = pd.read_csv("gpu_upgrade_rules.csv")
     pricing = pd.read_csv("pricing.csv")
     configs = pd.read_csv("redbox_configs.csv")
-    partners = pd.read_csv("partner_codes.csv")
-    return workloads, upgrade_rules, pricing, configs, partners
+    credentials = pd.read_csv("partner_credentials.csv")
+    return workloads, upgrade_rules, pricing, configs, credentials
 
-workloads, upgrade_rules, pricing, configs, partners = load_data()
+workloads, upgrade_rules, pricing, configs, credentials = load_data()
 
 if "logged_in" not in st.session_state:
     st.session_state['logged_in'] = False
@@ -27,19 +28,25 @@ if "admin" not in st.session_state:
     st.session_state['admin'] = False
 
 st.title("🔐 Redsand Partner Portal")
-login_input = st.text_input("Enter your Partner Code or Admin Email", type="password")
+col1, col2 = st.columns(2)
+with col1:
+    login_input = st.text_input("Partner Code or Admin Email")
+with col2:
+    password_input = st.text_input("Password", type="password")
+
 if st.button("Login"):
     if login_input == ADMIN_EMAIL:
         st.session_state['admin'] = True
         st.session_state['logged_in'] = True
-    elif login_input in partners['partner_code'].values:
-        st.session_state['partner_name'] = partners.loc[partners['partner_code'] == login_input, 'partner_name'].values[0]
-        st.session_state['partner_code'] = login_input
-        st.session_state['admin'] = False
-        st.session_state['logged_in'] = True
     else:
-        st.error("Invalid login. Try again.")
-
+        match = credentials[(credentials['partner_code'] == login_input) & (credentials['password'] == password_input)]
+        if not match.empty:
+            st.session_state['partner_name'] = match.iloc[0]['partner_name']
+            st.session_state['partner_code'] = match.iloc[0]['partner_code']
+            st.session_state['admin'] = False
+            st.session_state['logged_in'] = True
+        else:
+            st.error("Invalid partner code or password.")
 def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
     log_row = {
         "timestamp": datetime.now().isoformat(),

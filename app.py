@@ -10,6 +10,7 @@ import os
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
 ADMIN_EMAIL = "sdama@redsand.ai"
+ADMIN_PASSWORD = "redsandadmin123"
 
 @st.cache_data
 def load_data():
@@ -35,7 +36,7 @@ with col2:
     password_input = st.text_input("Password", type="password")
 
 if st.button("Login"):
-    if login_input == ADMIN_EMAIL:
+    if login_input == ADMIN_EMAIL and password_input == ADMIN_PASSWORD:
         st.session_state['admin'] = True
         st.session_state['logged_in'] = True
     else:
@@ -47,6 +48,7 @@ if st.button("Login"):
             st.session_state['logged_in'] = True
         else:
             st.error("Invalid partner code or password.")
+
 def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
     now = datetime.now()
     log_row = {

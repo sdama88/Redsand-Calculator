@@ -3,5 +3,6 @@ RedBox Voice,4 × B200,2 × AMD EPYC 9654,1TB DDR5-4800 ECC,8TB NVMe Gen5 SSD + 
 RedBox One,8 x L40S,1 × AMD EPYC (96-core),1.5TB DDR5 ECC,4 × 3.84TB NVMe + 2 × 16TB SATA SSD,2 × 100GbE uplinks + 1 × 1GbE Mgmt port,L40S
 RedBox Max,64 x H100,2 × AMD EPYC (128-core),2TB DDR5 ECC,80TB NVMe + 500GB HDD (Ceph tiered),4 × 400GbE uplinksm 100Gb Interconnects,H100
 RedBox Ultra,360 x H100,12 × AMD EPYC (128-core),12TB DDR5 ECC,400TB NVMe + 5PB HDD (Ceph tiered),12 × 400GbE uplinks + Switching,H100
-RedBox Max / B200,32 x B200,2 × AMD EPYC (128-core),2TB DDR5 ECC,80TB NVMe + 500GB HDD (Ceph tiered),4 × 400GbE uplinksm 100Gb Interconnects,B200
-RedBox Ultra / B200,180 x B200,12 × AMD EPYC (128-core),12TB DDR5 ECC,400TB NVMe + 5PB HDD (Ceph tiered),12 × 400GbE uplinks + Switching,B200
+RedBox Max (B200),32 x B200,2 × AMD EPYC (128-core),2TB DDR5 ECC,80TB NVMe + 500GB HDD (Ceph tiered),4 × 400GbE uplinksm 100Gb Interconnects,B200
+RedBox Ultra (B200),180 x B200,12 × AMD EPYC (128-core),12TB DDR5 ECC,400TB NVMe + 5PB HDD (Ceph tiered),12 × 400GbE uplinks + Switching,B200
+

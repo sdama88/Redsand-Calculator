@@ -87,6 +87,13 @@ if st.session_state['logged_in']:
                 workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
                 users_per_box = workload_row["users_per_gpu"]
                 num_boxes = max(1, int(users / users_per_box))
+
+                # DEBUG LOGGING for verification
+                st.warning(f"[DEBUG] VOICEBOT SELECTED")
+                st.warning(f"[DEBUG] Config: {selected_config}")
+                st.warning(f"[DEBUG] GPU: {final_gpu}")
+                st.warning(f"[DEBUG] Users per Box: {users_per_box}")
+                st.warning(f"[DEBUG] Boxes Needed: {num_boxes}")
             else:
                 workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
                 base_gpu = workload_row["gpu_type"]

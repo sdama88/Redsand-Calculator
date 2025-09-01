@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -58,47 +57,56 @@ if st.session_state['logged_in']:
             users = st.number_input("Number of Concurrent Users", min_value=1, step=1)
 
             row = workloads[workloads["workload_name"] == use_case].iloc[0]
-            gpu_type = row["gpu_type"]
+            base_gpu = row["gpu_type"]
             users_per_box = row["users_per_gpu"]
-            num_boxes = max(1, int(users / users_per_box))
 
-            # Apply upgrade logic if needed
+            # Apply silent GPU upgrade
             upgrade = upgrade_rules[
-                (upgrade_rules["current_gpu"] == gpu_type) & (users >= upgrade_rules["user_threshold"])
+                (upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])
             ]
-            if not upgrade.empty:
-                gpu_type = upgrade.iloc[0]["upgrade_gpu"]
+            final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
 
-            # Find matching configuration
-            config_match = configs[configs["gpu_type"] == gpu_type]
-            if config_match.empty:
-                st.error(f"No RedBox configuration found for GPU type {gpu_type}.")
+            # Match smallest config with upgraded GPU
+            matching_configs = configs[configs["gpu_type"] == final_gpu]
+            if matching_configs.empty:
+                st.error(f"No configuration available for GPU type {final_gpu}.")
             else:
-                selected_config = config_match.iloc[0]["configuration_name"]
-                price_per_box = pricing[pricing["configuration_name"] == selected_config]["monthly_price_usd"].values[0]
-                monthly = price_per_box * num_boxes
-                yearly = monthly * 12
-                total_3yr = yearly * 3
+                selected_config = matching_configs.iloc[0]["configuration_name"]
+                num_boxes = max(1, int(users / users_per_box))
 
-                st.success("Configuration Recommended")
-                st.write(f"**Configuration:** {selected_config}")
-                st.write(f"**GPU Type:** {gpu_type}")
-                st.write(f"**Boxes Needed:** {num_boxes}")
-                st.metric("💰 Monthly", f"${monthly:,.0f}")
-                st.metric("📅 Yearly", f"${yearly:,.0f}")
-                st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+                # Pricing
+                price_row = pricing[pricing["configuration_name"] == selected_config]
+                if price_row.empty:
+                    st.error(f"No pricing found for {selected_config}.")
+                else:
+                    price_per_box = price_row["monthly_price_usd"].values[0]
+                    monthly = price_per_box * num_boxes
+                    yearly = monthly * 12
+                    total_3yr = yearly * 3
+
+                    st.success("Configuration Recommended")
+                    st.write(f"**Configuration:** {selected_config}")
+                    st.write(f"**GPU Type:** {final_gpu}")
+                    st.write(f"**Boxes Needed:** {num_boxes}")
+                    st.metric("💰 Monthly", f"${monthly:,.0f}")
+                    st.metric("📅 Yearly", f"${yearly:,.0f}")
+                    st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
 
         elif mode == "✋ Manual Selection":
             selected_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique())
             quantity = st.number_input("Quantity", min_value=1, step=1)
-            price_per_box = pricing[pricing["configuration_name"] == selected_config]["monthly_price_usd"].values[0]
-            monthly = price_per_box * quantity
-            yearly = monthly * 12
-            total_3yr = yearly * 3
+            price_row = pricing[pricing["configuration_name"] == selected_config]
+            if price_row.empty:
+                st.error(f"No pricing found for {selected_config}.")
+            else:
+                price_per_box = price_row["monthly_price_usd"].values[0]
+                monthly = price_per_box * quantity
+                yearly = monthly * 12
+                total_3yr = yearly * 3
 
-            st.success("Manual Configuration Selected")
-            st.write(f"**Configuration:** {selected_config}")
-            st.write(f"**Quantity:** {quantity}")
-            st.metric("💰 Monthly", f"${monthly:,.0f}")
-            st.metric("📅 Yearly", f"${yearly:,.0f}")
-            st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+                st.success("Manual Configuration Selected")
+                st.write(f"**Configuration:** {selected_config}")
+                st.write(f"**Quantity:** {quantity}")
+                st.metric("💰 Monthly", f"${monthly:,.0f}")
+                st.metric("📅 Yearly", f"${yearly:,.0f}")
+                st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")

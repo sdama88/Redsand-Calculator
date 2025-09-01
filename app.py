@@ -79,25 +79,29 @@ if st.session_state['logged_in']:
             use_case = st.selectbox("Select Use Case", workloads['workload_name'].unique())
             users = st.number_input("Number of Concurrent Users", min_value=1, step=1)
 
+            # Fully override logic for Voicebot
             if use_case == "Voicebot":
                 selected_config = "RedBox Voice"
                 config_row = configs[configs["configuration_name"] == selected_config].iloc[0]
                 final_gpu = config_row["gpu_type"]
-                row = workloads[workloads["workload_name"] == use_case].iloc[0]
-                users_per_box = row["users_per_gpu"]
+                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+                users_per_box = workload_row["users_per_gpu"]
+                num_boxes = max(1, int(users / users_per_box))
             else:
-                row = workloads[workloads["workload_name"] == use_case].iloc[0]
-                base_gpu = row["gpu_type"]
-                users_per_box = row["users_per_gpu"]
+                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+                base_gpu = workload_row["gpu_type"]
+                users_per_box = workload_row["users_per_gpu"]
+                num_boxes = max(1, int(users / users_per_box))
+
                 upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
                 final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
+
                 matching_configs = configs[configs["gpu_type"] == final_gpu]
                 if matching_configs.empty:
                     st.error(f"No configuration available for GPU type {final_gpu}.")
                     st.stop()
                 selected_config = matching_configs.iloc[0]["configuration_name"]
 
-            num_boxes = max(1, int(users / users_per_box))
             price_row = pricing[pricing["configuration_name"] == selected_config]
             if price_row.empty:
                 st.error(f"No pricing found for {selected_config}.")

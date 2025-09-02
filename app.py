@@ -102,18 +102,6 @@ if st.session_state["page"] == "login":
             else:
                 st.error("Invalid partner code or password.")
 
-# ------------------ LOGOUT BUTTON ------------------
-if st.session_state['logged_in']:
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.session_state["page"] = "login"
-        st.stop()
-
-# ------------------ BACK BUTTON ------------------
-if st.session_state.get("page") == "configure":
-    if st.button("🔙 Back"):
-        st.session_state["page"] = "welcome"
-
 # ------------------ WELCOME PAGE ------------------
 elif st.session_state["page"] == "welcome":
     if st.session_state['admin']:
@@ -137,6 +125,11 @@ elif st.session_state["page"] == "welcome":
 
         if st.button("Next"):
             st.session_state["page"] = "configure"
+
+    if st.button("Logout"):
+        st.session_state.clear()
+        st.session_state["page"] = "login"
+        st.stop()
 
 # ------------------ CONFIGURATION PAGE ------------------
 elif st.session_state["page"] == "configure":
@@ -230,3 +223,11 @@ elif st.session_state["page"] == "configure":
         generate_pdf(filename, summary_data, st.session_state['partner_name'])
         st.download_button("📄 Download PDF", open(filename, "rb"), file_name=filename)
         log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Manual", "Manual", selected_config, "", quantity, monthly, yearly, total_3yr, filename)
+
+    if st.button("🔙 Back"):
+        st.session_state["page"] = "welcome"
+
+    if st.button("Logout"):
+        st.session_state.clear()
+        st.session_state["page"] = "login"
+        st.stop()

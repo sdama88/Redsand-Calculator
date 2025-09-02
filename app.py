@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, Table
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -29,8 +29,6 @@ if "logged_in" not in st.session_state:
     st.session_state['logged_in'] = False
 if "admin" not in st.session_state:
     st.session_state['admin'] = False
-if "show_summary" not in st.session_state:
-    st.session_state["show_summary"] = False
 if "pdf_ready" not in st.session_state:
     st.session_state["pdf_ready"] = False
 if "quote_id" not in st.session_state:
@@ -46,75 +44,139 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
     normal_style.fontSize = 11
     story = []
 
-    header_table = []
     logo_path = "Redsand Logo_White.png"
     if os.path.exists(logo_path):
         logo = Image(logo_path, width=1.6*inch, height=0.5*inch)
     else:
         logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
-    header_table.append([Paragraph("<b>Redsand Partner Configuration Summary</b>", title_style), logo])
-    ht = Table(header_table, colWidths=[4.5*inch, 1.5*inch])
+
+    header = [[Paragraph("Redsand Partner Configuration Summary", title_style), logo]]
+    ht = Table(header, colWidths=[4.5*inch, 1.5*inch])
     ht.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     story.append(ht)
 
     story.append(Spacer(1, 8))
     story.append(Paragraph(datetime.now().strftime("%A, %d %B %Y — %H:%M:%S"), normal_style))
-    story.append(Paragraph(f"<b>Quote ID:</b> {quote_id}", normal_style))
+    story.append(Paragraph(f"Quote ID: {quote_id}", normal_style))
     story.append(Spacer(1, 18))
-    story.append(Paragraph(f"<b>Partner:</b> {partner_name}", normal_style))
+    story.append(Paragraph(f"Partner: {partner_name}", normal_style))
     story.append(Spacer(1, 12))
 
     table_data = [["Field", "Value"]] + summary_data
     table = Table(table_data, hAlign='LEFT', colWidths=[150, 300])
-    table_style = TableStyle([
+    style = TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#d71920")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 0), (-1, -1), 11),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8)
     ])
     for i in range(1, len(table_data)):
-        bg_color = colors.whitesmoke if i % 2 == 0 else colors.lightgrey
-        table_style.add('BACKGROUND', (0, i), (-1, i), bg_color)
-    table.setStyle(table_style)
+        bg = colors.whitesmoke if i % 2 == 0 else colors.lightgrey
+        style.add('BACKGROUND', (0, i), (-1, i), bg)
+    table.setStyle(style)
     story.append(table)
     story.append(Spacer(1, 24))
 
-    disclaimer_style = ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)
-    disclaimer_text = (
+    disclaimer = (
         "<b>Disclaimer:</b> The pricing provided in this summary is indicative only. "
         "Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, "
         "service-level agreements, hardware availability, and customer-specific requirements. "
-        "Please contact Redsand at <b>sales@redsand.ai</b> for an official quote or custom configuration.")
-    story.append(Paragraph(disclaimer_text, disclaimer_style))
+        "Please contact Redsand at <b>sales@redsand.ai</b> for an official quote or custom configuration."
+    )
+    story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
 
     doc.build(story)
 
-# ------------------ CONFIG LOGGING ------------------
-def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file, quote_id):
-    log_row = {
-        "timestamp": datetime.now().isoformat(),
-        "partner_code": partner_code,
-        "partner_name": partner_name,
-        "quote_id": quote_id,
-        "mode": mode,
-        "use_case_or_selection": use_case,
-        "configuration": config,
-        "gpu_type": gpu_type,
-        "quantity": qty,
-        "monthly": monthly,
-        "yearly": yearly,
-        "three_year_total": total_3yr,
-        "pdf_file": pdf_file
-    }
-    try:
-        log_df = pd.read_csv("config_log.csv")
-        log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
-    except FileNotFoundError:
-        log_df = pd.DataFrame([log_row])
-    log_df.to_csv("config_log.csv", index=False)
+# ------------------ CONFIG PREVIEW PAGE ------------------
+if st.session_state.get("page") == "config_preview" and st.session_state.get("logged_in"):
+    st.subheader("🔧 Configuration Preview")
+    use_case = st.session_state["use_case"]
+    users = st.session_state["num_users"]
+    mode = st.session_state.get("quote_mode", "Auto")
+
+    if use_case == "Voice Bot":
+        config_row = configs[configs["configuration_name"] == "RedBox Voice"].iloc[0]
+        selected_config = config_row["configuration_name"]
+        final_gpu = config_row["gpu_type"]
+        users_per_box = workloads[workloads["workload_name"] == use_case].iloc[0]["users_per_gpu"]
+        num_boxes = max(1, int(users / users_per_box))
+    elif mode == "Auto":
+        workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+        base_gpu = workload_row["gpu_type"]
+        users_per_box = workload_row["users_per_gpu"]
+        num_boxes = max(1, int(users / users_per_box))
+        upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
+        final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
+        matching_configs = configs[configs["gpu_type"] == final_gpu]
+        selected_config = matching_configs.iloc[0]["configuration_name"]
+    else:
+        selected_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique(), key="manual_select")
+        num_boxes = st.number_input("Quantity", min_value=1, step=1, key="manual_qty")
+        final_gpu = configs[configs["configuration_name"] == selected_config].iloc[0]["gpu_type"]
+
+    st.session_state["preview_config"] = selected_config
+    st.session_state["preview_gpu"] = final_gpu
+    st.session_state["preview_boxes"] = num_boxes
+
+    st.write(f"**Use Case:** {use_case}")
+    st.write(f"**GPU Type:** {final_gpu}")
+    st.write(f"**Configuration:** {selected_config}")
+    st.write(f"**Boxes Needed:** {num_boxes}")
+
+    if st.button("Generate Quote", key="gen_quote_btn"):
+        st.session_state["page"] = "quote_summary"
+
+# ------------------ QUOTE SUMMARY PAGE ------------------
+if st.session_state.get("page") == "quote_summary" and st.session_state.get("logged_in"):
+    st.subheader("🧾 Quote Summary")
+    use_case = st.session_state["use_case"]
+    selected_config = st.session_state["preview_config"]
+    final_gpu = st.session_state["preview_gpu"]
+    num_boxes = st.session_state["preview_boxes"]
+    quote_id = st.session_state["quote_id"]
+
+    price_row = pricing[pricing["configuration_name"] == selected_config]
+    if price_row.empty:
+        st.error(f"No pricing found for {selected_config}.")
+    else:
+        price_per_box = price_row["monthly_price_usd"].values[0]
+        monthly = price_per_box * num_boxes
+        yearly = monthly * 12
+        total_3yr = yearly * 3
+
+        summary_data = [
+            ["Partner", st.session_state['partner_name']],
+            ["Quote ID", quote_id],
+            ["Use Case", use_case],
+            ["GPU Type", final_gpu],
+            ["Configuration", selected_config],
+            ["Boxes Needed", num_boxes],
+            ["Monthly Cost", f"${monthly:,.0f}"],
+            ["Yearly Cost", f"${yearly:,.0f}"],
+            ["3-Year Total", f"${total_3yr:,.0f}"]
+        ]
+
+        for row in summary_data:
+            st.write(f"**{row[0]}:** {row[1]}")
+
+        filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+        generate_pdf(filename, summary_data, st.session_state['partner_name'], quote_id)
+        with open(filename, "rb") as f:
+            st.download_button("📄 Download PDF", f, file_name=filename)
+
+        nav1, nav2, nav3 = st.columns([1,1,1])
+        with nav1:
+            if st.button("🏠 Home", key="home_quote"):
+                st.session_state["page"] = "welcome"
+        with nav2:
+            if st.button("🔙 Back", key="back_quote"):
+                st.session_state["page"] = "config_preview"
+        with nav3:
+            if st.button("🔓 Logout", key="logout_quote"):
+                st.session_state.clear()
+                st.experimental_rerun()
 
 # ------------------ WELCOME DASHBOARD ------------------
 if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in"):
@@ -126,11 +188,11 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
         num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
         selected_mode = st.radio("Choose Mode", ["Auto (Recommended)", "Manual Selection"], key="quote_mode_selection")
-        if st.button("Generate Quote"):
+        if st.button("Next", key="next_welcome"):
             st.session_state["use_case"] = selected_use_case
             st.session_state["num_users"] = num_users
             st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
-            st.session_state["page"] = "configure"
+            st.session_state["page"] = "config_preview"
 
     with col_right:
         st.markdown("### 📚 My Quote History")
@@ -154,96 +216,12 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
     st.divider()
     home_col1, home_col2 = st.columns([1, 1])
     with home_col1:
-        if st.button("🏠 Home"):
+        if st.button("🏠 Home", key="home_welcome"):
             st.session_state["page"] = "welcome"
     with home_col2:
-        if st.button("🔓 Logout"):
+        if st.button("🔓 Logout", key="logout_welcome"):
             st.session_state.clear()
             st.experimental_rerun()
-
-# ------------------ CONFIGURATION SUMMARY PAGE ------------------
-if st.session_state.get("page") == "configure" and st.session_state.get("logged_in"):
-    st.subheader("🧾 Quote Summary")
-    use_case = st.session_state["use_case"]
-    users = st.session_state["num_users"]
-    mode = st.session_state.get("quote_mode", "Auto")
-    quote_id = st.session_state["quote_id"]
-
-    if use_case == "Voice Bot":
-        config_row = configs[configs["configuration_name"] == "RedBox Voice"].iloc[0]
-        selected_config = config_row["configuration_name"]
-        final_gpu = config_row["gpu_type"]
-        users_per_box = workloads[workloads["workload_name"] == use_case].iloc[0]["users_per_gpu"]
-        num_boxes = max(1, int(users / users_per_box))
-    elif mode == "Auto":
-        workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
-        base_gpu = workload_row["gpu_type"]
-        users_per_box = workload_row["users_per_gpu"]
-        num_boxes = max(1, int(users / users_per_box))
-        upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
-        final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
-        matching_configs = configs[configs["gpu_type"] == final_gpu]
-        selected_config = matching_configs.iloc[0]["configuration_name"]
-    else:
-        selected_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique(), key="manual_select")
-        num_boxes = st.number_input("Quantity", min_value=1, step=1, key="manual_qty")
-        final_gpu = configs[configs["configuration_name"] == selected_config].iloc[0]["gpu_type"]
-
-    price_row = pricing[pricing["configuration_name"] == selected_config]
-    if price_row.empty:
-        st.error(f"No pricing found for {selected_config}.")
-    else:
-        price_per_box = price_row["monthly_price_usd"].values[0]
-        monthly = price_per_box * num_boxes
-        yearly = monthly * 12
-        total_3yr = yearly * 3
-
-        st.markdown(f"**Partner:** {st.session_state['partner_name']}  ")
-        st.markdown(f"**Quote ID:** `{quote_id}`  ")
-        st.markdown(f"**Use Case:** {use_case}  ")
-        st.markdown(f"**GPU Type:** {final_gpu}  ")
-        st.markdown(f"**Configuration:** {selected_config}  ")
-        st.markdown(f"**Boxes Needed:** {num_boxes}  ")
-        st.metric("💰 Monthly", f"${monthly:,.0f}")
-        st.metric("📅 Yearly", f"${yearly:,.0f}")
-        st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
-
-        filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        summary_data = [
-            ["Partner", st.session_state['partner_name']],
-            ["Quote ID", quote_id],
-            ["Use Case", use_case],
-            ["GPU Type", final_gpu],
-            ["Boxes Needed", num_boxes],
-            ["Configuration", selected_config],
-            ["Monthly Cost", f"${monthly:,.0f}"],
-            ["Yearly Cost", f"${yearly:,.0f}"],
-            ["3-Year Total", f"${total_3yr:,.0f}"]
-        ]
-        generate_pdf(filename, summary_data, st.session_state['partner_name'], quote_id)
-        with open(filename, "rb") as f:
-            st.download_button("📄 Download PDF", f, file_name=filename)
-        st.success("PDF quote generated successfully.")
-        log_config(st.session_state['partner_code'], st.session_state['partner_name'], mode, use_case, selected_config, final_gpu, num_boxes, monthly, yearly, total_3yr, filename, quote_id)
-
-        nav1, nav2, nav3 = st.columns([1,1,1])
-        with nav1:
-            if st.button("🏠 Home"):
-                st.session_state["page"] = "welcome"
-        with nav2:
-            if st.button("🔙 Back"):
-                st.session_state["page"] = "welcome"
-        with nav3:
-            if st.button("🔓 Logout"):
-                st.session_state.clear()
-                st.experimental_rerun()
-
-# ------------------ CONTACT CTA ------------------
-if st.session_state.get("pdf_ready"):
-    st.subheader("📨 Special Requirements / Contact Redsand")
-    st.markdown("If you have special requirements or need custom configurations, please contact **partners@redsand.ai** with your Quote ID and configuration PDF.")
-    st.markdown("You can download the summary above and email it directly to our team for further assistance.")
-    st.markdown(f"📄 **Your Quote ID:** `{st.session_state['quote_id']}`")
 
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":
@@ -254,7 +232,7 @@ if st.session_state["page"] == "login":
     with col2:
         password_input = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    if st.button("Login", key="login_btn"):
         if login_input == ADMIN_EMAIL:
             st.session_state['admin'] = True
             st.session_state['logged_in'] = True

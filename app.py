@@ -11,7 +11,6 @@ import os
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
 ADMIN_EMAIL = "sdama@redsand.ai"
 
-
 @st.cache_data
 def load_data():
     workloads = pd.read_csv("workloads.csv")
@@ -36,7 +35,7 @@ with col2:
     password_input = st.text_input("Password", type="password")
 
 if st.button("Login"):
-    if login_input == ADMIN_EMAIL and password_input == ADMIN_PASSWORD:
+    if login_input == ADMIN_EMAIL:
         st.session_state['admin'] = True
         st.session_state['logged_in'] = True
     else:
@@ -48,13 +47,9 @@ if st.button("Login"):
             st.session_state['logged_in'] = True
         else:
             st.error("Invalid partner code or password.")
-
 def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
-    now = datetime.now()
     log_row = {
-        "timestamp": now.isoformat(),
-        "date": now.strftime("%Y-%m-%d"),
-        "time": now.strftime("%H:%M:%S"),
+        "timestamp": datetime.now().isoformat(),
         "partner_code": partner_code,
         "partner_name": partner_name,
         "mode": mode,
@@ -74,51 +69,140 @@ def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty
         log_df = pd.DataFrame([log_row])
     log_df.to_csv("config_log.csv", index=False)
 
-def generate_pdf(filename, summary_data, partner_name):
-    doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
-    styles = getSampleStyleSheet()
-    normal_style = styles['Normal']
-    title_style = styles['Title']
-    title_style.fontSize = 18
-    normal_style.fontSize = 11
-    story = []
-
-    logo_path = "Redsand Logo_White.png"
-    if os.path.exists(logo_path):
-        story.append(Image(logo_path, width=2.5*inch, height=0.8*inch))
+if st.session_state['logged_in']:
+    if st.session_state['admin']:
+        st.subheader("🔧 Admin Panel")
+        try:
+            logs = pd.read_csv("config_log.csv")
+            st.dataframe(logs)
+            st.download_button("Download All Logs", logs.to_csv(index=False), file_name="config_log.csv")
+        except FileNotFoundError:
+            st.info("No configuration logs found yet.")
     else:
-        story.append(Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920"))))
-    story.append(Spacer(1, 12))
+        st.subheader(f"Welcome, {st.session_state['partner_name']}")
+        mode = st.radio("Choose Mode", ["🔍 Use Case Recommendation", "✋ Manual Selection"])
 
-    story.append(Paragraph("Redsand Partner Configuration Summary", title_style))
-    story.append(Paragraph(datetime.now().strftime("%A, %d %B %Y — %H:%M:%S"), normal_style))
-    story.append(Spacer(1, 18))
-    story.append(Paragraph(f"<b>Partner:</b> {partner_name}", normal_style))
-    story.append(Spacer(1, 12))
+        if mode == "🔍 Use Case Recommendation":
+            use_case = st.selectbox("Select Use Case", workloads['workload_name'].unique())
+            users = st.number_input("Number of Concurrent Users", min_value=1, step=1)
 
-    table_data = [["Field", "Value"]] + summary_data
-    table = Table(table_data, hAlign='LEFT', colWidths=[150, 300])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#d71920")),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 11),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
-    ]))
-    story.append(table)
-    story.append(Spacer(1, 24))
+            # Fully override logic for Voicebot
+            if use_case == "Voicebot":
+                selected_config = "RedBox Voice"
+                config_row = configs[configs["configuration_name"] == selected_config].iloc[0]
+                final_gpu = config_row["gpu_type"]
+                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+                users_per_box = workload_row["users_per_gpu"]
+                num_boxes = max(1, int(users / users_per_box))
 
-    disclaimer_style = ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)
-    disclaimer_text = (
-        "<b>Disclaimer:</b> The pricing provided in this summary is indicative only. "
-        "Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, "
-        "service-level agreements, hardware availability, and customer-specific requirements. "
-        "Please contact Redsand for an official quote.")
-    story.append(Paragraph(disclaimer_text, disclaimer_style))
+                # DEBUG LOGGING for verification
+                st.warning(f"[DEBUG] VOICEBOT SELECTED")
+                st.warning(f"[DEBUG] Config: {selected_config}")
+                st.warning(f"[DEBUG] GPU: {final_gpu}")
+                st.warning(f"[DEBUG] Users per Box: {users_per_box}")
+                st.warning(f"[DEBUG] Boxes Needed: {num_boxes}")
+            else:
+                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+                base_gpu = workload_row["gpu_type"]
+                users_per_box = workload_row["users_per_gpu"]
+                num_boxes = max(1, int(users / users_per_box))
 
-    doc.build(story)
+                upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
+                final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
 
+                matching_configs = configs[configs["gpu_type"] == final_gpu]
+                if matching_configs.empty:
+                    st.error(f"No configuration available for GPU type {final_gpu}.")
+                    st.stop()
+                selected_config = matching_configs.iloc[0]["configuration_name"]
+
+            price_row = pricing[pricing["configuration_name"] == selected_config]
+            if price_row.empty:
+                st.error(f"No pricing found for {selected_config}.")
+            else:
+                price_per_box = price_row["monthly_price_usd"].values[0]
+                monthly = price_per_box * num_boxes
+                yearly = monthly * 12
+                total_3yr = yearly * 3
+
+                st.success("Configuration Recommended")
+                st.write(f"**Configuration:** {selected_config}")
+                st.write(f"**GPU Type:** {final_gpu}")
+                st.write(f"**Boxes Needed:** {num_boxes}")
+                st.metric("💰 Monthly", f"${monthly:,.0f}")
+                st.metric("📅 Yearly", f"${yearly:,.0f}")
+                st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+
+                filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+                doc = SimpleDocTemplate(filename, pagesize=A4)
+                styles = getSampleStyleSheet()
+                story = [Paragraph("Redsand Partner Configuration Summary", styles['Title']), Spacer(1, 12)]
+
+                data = [
+                    ["Partner", st.session_state['partner_name']],
+                    ["Use Case", use_case],
+                    ["GPU Type", final_gpu],
+                    ["Boxes Needed", num_boxes],
+                    ["Configuration", selected_config],
+                    ["Monthly Cost", f"${monthly:,.0f}"],
+                    ["Yearly Cost", f"${yearly:,.0f}"],
+                    ["3-Year Total", f"${total_3yr:,.0f}"]
+                ]
+                table = Table(data, hAlign='LEFT')
+                table.setStyle(TableStyle([
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ]))
+                story.append(table)
+                doc.build(story)
+
+                with open(filename, "rb") as f:
+                    st.download_button("📄 Download PDF", f, file_name=filename)
+
+                log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Auto", use_case, selected_config, final_gpu, num_boxes, monthly, yearly, total_3yr, filename)
+
+        elif mode == "✋ Manual Selection":
+            selected_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique())
+            quantity = st.number_input("Quantity", min_value=1, step=1)
+            price_row = pricing[pricing["configuration_name"] == selected_config]
+            if price_row.empty:
+                st.error(f"No pricing found for {selected_config}.")
+            else:
+                price_per_box = price_row["monthly_price_usd"].values[0]
+                monthly = price_per_box * quantity
+                yearly = monthly * 12
+                total_3yr = yearly * 3
+
+                st.success("Manual Configuration Selected")
+                st.write(f"**Configuration:** {selected_config}")
+                st.write(f"**Quantity:** {quantity}")
+                st.metric("💰 Monthly", f"${monthly:,.0f}")
+                st.metric("📅 Yearly", f"${yearly:,.0f}")
+                st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+
+                filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+                doc = SimpleDocTemplate(filename, pagesize=A4)
+                styles = getSampleStyleSheet()
+                story = [Paragraph("Redsand Partner Configuration Summary", styles['Title']), Spacer(1, 12)]
+
+                data = [
+                    ["Partner", st.session_state['partner_name']],
+                    ["Manual Selection", selected_config],
+                    ["Quantity", quantity],
+                    ["Monthly Cost", f"${monthly:,.0f}"],
+                    ["Yearly Cost", f"${yearly:,.0f}"],
+                    ["3-Year Total", f"${total_3yr:,.0f}"]
+                ]
+                table = Table(data, hAlign='LEFT')
+                table.setStyle(TableStyle([
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ]))
+                story.append(table)
+                doc.build(story)
+
+                with open(filename, "rb") as f:
+                    st.download_button("📄 Download PDF", f, file_name=filename)
+
+                log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Manual", "Manual", selected_config, "", quantity, monthly, yearly, total_3yr, filename)
 # Your main app logic would continue here...

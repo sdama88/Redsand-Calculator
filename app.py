@@ -191,7 +191,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         with nav4:
             if st.button("🔓 Logout", key="logout_welcome"):
                 st.session_state.clear()
-                 st.session_state["page"] = "login"
+                st.session_state["page"] = "login"
 
     with col_right:
         st.markdown("### 🔍 Compare Configurations")

@@ -256,8 +256,12 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         filename = f"Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
         summary_data = [["Use Case", use_case],["GPU Type", final_gpu],["Configuration", selected_config],["Units", num_units],["Monthly Cost", f"${monthly:,.0f}"],["Yearly Cost", f"${yearly:,.0f}"],["3-Year Total", f"${total_3yr:,.0f}"]]
         generate_pdf(filename, summary_data, st.session_state.get('partner_name',''), quote_id)
-        with open(filename, "rb") as f:
-            st.download_button("📄 Download PDF", f, file_name=filename)
+
+if os.path.exists(filename):
+    with open(filename, "rb") as f:
+        st.download_button("📄 Download PDF", f, file_name=filename)
+else:
+    st.error("PDF could not be generated. Please try again.")
 
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:

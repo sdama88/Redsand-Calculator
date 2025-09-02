@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, Table
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 import os
+import uuid
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
 ADMIN_EMAIL = "sdama@redsand.ai"
@@ -32,9 +33,11 @@ if "show_summary" not in st.session_state:
     st.session_state["show_summary"] = False
 if "pdf_ready" not in st.session_state:
     st.session_state["pdf_ready"] = False
+if "quote_id" not in st.session_state:
+    st.session_state["quote_id"] = str(uuid.uuid4())[:8]
 
 # ------------------ PDF GENERATOR ------------------
-def generate_pdf(filename, summary_data, partner_name):
+def generate_pdf(filename, summary_data, partner_name, quote_id):
     doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
     styles = getSampleStyleSheet()
     normal_style = styles['Normal']
@@ -43,31 +46,39 @@ def generate_pdf(filename, summary_data, partner_name):
     normal_style.fontSize = 11
     story = []
 
+    header_table = []
     logo_path = "Redsand Logo_White.png"
     if os.path.exists(logo_path):
-        story.append(Image(logo_path, width=2.5*inch, height=0.8*inch))
+        logo = Image(logo_path, width=1.6*inch, height=0.5*inch)
     else:
-        story.append(Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920"))))
-    story.append(Spacer(1, 12))
+        logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
+    header_table.append([Paragraph("<b>Redsand Partner Configuration Summary</b>", title_style), logo])
+    ht = Table(header_table, colWidths=[4.5*inch, 1.5*inch])
+    ht.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    story.append(ht)
 
-    story.append(Paragraph("Redsand Partner Configuration Summary", title_style))
+    story.append(Spacer(1, 8))
     story.append(Paragraph(datetime.now().strftime("%A, %d %B %Y — %H:%M:%S"), normal_style))
+    story.append(Paragraph(f"<b>Quote ID:</b> {quote_id}", normal_style))
     story.append(Spacer(1, 18))
     story.append(Paragraph(f"<b>Partner:</b> {partner_name}", normal_style))
     story.append(Spacer(1, 12))
 
     table_data = [["Field", "Value"]] + summary_data
     table = Table(table_data, hAlign='LEFT', colWidths=[150, 300])
-    table.setStyle(TableStyle([
+    table_style = TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#d71920")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 0), (-1, -1), 11),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
         ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
-    ]))
+    ])
+    for i in range(1, len(table_data)):
+        bg_color = colors.whitesmoke if i % 2 == 0 else colors.lightgrey
+        table_style.add('BACKGROUND', (0, i), (-1, i), bg_color)
+    table.setStyle(table_style)
     story.append(table)
     story.append(Spacer(1, 24))
 
@@ -76,17 +87,18 @@ def generate_pdf(filename, summary_data, partner_name):
         "<b>Disclaimer:</b> The pricing provided in this summary is indicative only. "
         "Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, "
         "service-level agreements, hardware availability, and customer-specific requirements. "
-        "Please contact Redsand for an official quote.")
+        "Please contact Redsand at <b>sales@redsand.ai</b> for an official quote or custom configuration.")
     story.append(Paragraph(disclaimer_text, disclaimer_style))
 
     doc.build(story)
 
 # ------------------ CONFIG LOGGING ------------------
-def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
+def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file, quote_id):
     log_row = {
         "timestamp": datetime.now().isoformat(),
         "partner_code": partner_code,
         "partner_name": partner_name,
+        "quote_id": quote_id,
         "mode": mode,
         "use_case_or_selection": use_case,
         "configuration": config,
@@ -104,6 +116,32 @@ def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty
         log_df = pd.DataFrame([log_row])
     log_df.to_csv("config_log.csv", index=False)
 
+# ------------------ CONTACT CTA ------------------
+if st.session_state.get("pdf_ready"):
+    st.subheader("📨 Special Requirements / Contact Redsand")
+    st.markdown("If you have special requirements or need custom configurations, please contact **partners@redsand.ai** with your Quote ID and configuration PDF.")
+    st.markdown("You can download the summary above and email it directly to our team for further assistance.")
+    st.markdown(f"📄 **Your Quote ID:** `{st.session_state['quote_id']}`")
+
+# ------------------ QUOTE HISTORY ------------------
+if st.session_state.get("logged_in") and not st.session_state.get("admin"):
+    st.subheader("📚 My Quote History")
+    try:
+        full_log = pd.read_csv("config_log.csv")
+        partner_log = full_log[full_log['partner_code'] == st.session_state['partner_code']]
+        if not partner_log.empty:
+            st.dataframe(partner_log.sort_values("timestamp", ascending=False))
+        else:
+            st.info("No previous quotes found.")
+    except FileNotFoundError:
+        st.info("Quote log file not found.")
+
+# ------------------ COMPARISON TOOL ------------------
+    st.subheader("🔍 Compare Configurations")
+    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique())
+    if compare_configs:
+        compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
+        st.dataframe(compare_df.set_index("configuration_name"))
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":
     st.title("🔐 Redsand Partner Portal")

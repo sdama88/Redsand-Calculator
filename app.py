@@ -213,7 +213,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
 
     with col_right:
         st.markdown("### 🔍 Compare Configurations")
-        compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
+        compare_configs = st.multiselect("Choose configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
         if compare_configs:
             compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
             st.dataframe(compare_df.set_index("configuration_name"))

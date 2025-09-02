@@ -116,14 +116,55 @@ def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty
         log_df = pd.DataFrame([log_row])
     log_df.to_csv("config_log.csv", index=False)
 
+# ------------------ WELCOME DASHBOARD ------------------
+if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in"):
+    st.subheader(f"🔐 Welcome, {st.session_state['partner_name']}")
+    col_left, col_right = st.columns([2, 3])
+
+    with col_left:
+        st.markdown("### 🚀 Start a New Quote")
+        selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
+        num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
+        if st.button("Begin Configuration"):
+            st.session_state["use_case"] = selected_use_case
+            st.session_state["num_users"] = num_users
+            st.session_state["page"] = "configure"
+
+    with col_right:
+        st.markdown("### 📚 My Quote History")
+        try:
+            full_log = pd.read_csv("config_log.csv")
+            partner_log = full_log[full_log['partner_code'] == st.session_state['partner_code']]
+            if not partner_log.empty:
+                st.dataframe(partner_log.sort_values("timestamp", ascending=False))
+            else:
+                st.info("No previous quotes found.")
+        except FileNotFoundError:
+            st.info("Quote log file not found.")
+
+    st.divider()
+    st.markdown("### 🔍 Compare Configurations")
+    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique())
+    if compare_configs:
+        compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
+        st.dataframe(compare_df.set_index("configuration_name"))
+
+    st.divider()
+    home_col1, home_col2 = st.columns([1, 1])
+    with home_col1:
+        if st.button("🏠 Home"):
+            st.session_state["page"] = "welcome"
+    with home_col2:
+        if st.button("🔓 Logout"):
+            st.session_state.clear()
+            st.experimental_rerun()
+
 # ------------------ CONTACT CTA ------------------
 if st.session_state.get("pdf_ready"):
     st.subheader("📨 Special Requirements / Contact Redsand")
     st.markdown("If you have special requirements or need custom configurations, please contact **partners@redsand.ai** with your Quote ID and configuration PDF.")
     st.markdown("You can download the summary above and email it directly to our team for further assistance.")
     st.markdown(f"📄 **Your Quote ID:** `{st.session_state['quote_id']}`")
-
-# ------------------ QUOTE HISTORY ------------------
 if st.session_state.get("logged_in") and not st.session_state.get("admin"):
     st.subheader("📚 My Quote History")
     try:

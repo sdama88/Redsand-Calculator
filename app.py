@@ -128,9 +128,9 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         selected_mode = st.radio("Choose Mode", ["Auto (Recommended)", "Manual Selection"], key="quote_mode_selection")
         if st.button("Generate Quote"):
             st.session_state["use_case"] = selected_use_case
-    st.session_state["num_users"] = num_users
-    st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
-    st.session_state["page"] = "configure"
+            st.session_state["num_users"] = num_users
+            st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
+            st.session_state["page"] = "configure"
 
     with col_right:
         st.markdown("### 📚 My Quote History")
@@ -245,8 +245,6 @@ if st.session_state.get("pdf_ready"):
     st.markdown("You can download the summary above and email it directly to our team for further assistance.")
     st.markdown(f"📄 **Your Quote ID:** `{st.session_state['quote_id']}`")
 
-
-
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":
     st.title("🔐 Redsand Partner Portal")
@@ -271,79 +269,3 @@ if st.session_state["page"] == "login":
                 st.session_state["page"] = "welcome"
             else:
                 st.error("Invalid partner code or password.")
-
-
-
-
-
-                selected_config = matching_configs.iloc[0]["configuration_name"]
-
-            st.session_state.update({
-                "summary_mode": "Auto",
-                "summary_use_case": use_case,
-                "summary_gpu": final_gpu,
-                "summary_config": selected_config,
-                "summary_qty": num_boxes
-            })
-
-        elif mode == "✋ Manual Selection":
-            selected_config = st.session_state['manual_config']
-            quantity = st.session_state['manual_qty']
-            st.session_state.update({
-                "summary_mode": "Manual",
-                "summary_use_case": "Manual",
-                "summary_gpu": "",
-                "summary_config": selected_config,
-                "summary_qty": quantity
-            })
-
-        st.session_state["show_summary"] = True
-
-    # Show Summary Section
-    st.subheader("📋 Configuration Summary")
-    qty = st.session_state["summary_qty"]
-    config = st.session_state["summary_config"]
-    gpu = st.session_state["summary_gpu"]
-    use_case = st.session_state["summary_use_case"]
-    price_row = pricing[pricing["configuration_name"] == config]
-    price_per_box = price_row["monthly_price_usd"].values[0]
-    monthly = price_per_box * qty
-    yearly = monthly * 12
-    total_3yr = yearly * 3
-
-    summary_data = [
-        ["Use Case", use_case],
-        ["GPU Type", gpu],
-        ["Boxes/Units", qty],
-        ["Configuration", config],
-        ["Monthly Cost", f"${monthly:,.0f}"],
-        ["Yearly Cost", f"${yearly:,.0f}"],
-        ["3-Year Total", f"${total_3yr:,.0f}"]
-    ]
-
-    for row in summary_data:
-        st.write(f"**{row[0]}:** {row[1]}")
-
-    if not st.session_state["pdf_ready"]:
-        if st.button("Generate PDF"):
-            filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-            generate_pdf(filename, summary_data, st.session_state['partner_name'])
-            log_config(st.session_state['partner_code'], st.session_state['partner_name'], st.session_state["summary_mode"], use_case, config, gpu, qty, monthly, yearly, total_3yr, filename)
-            st.session_state["pdf_file"] = filename
-            st.session_state["pdf_ready"] = True
-
-    if st.session_state["pdf_ready"]:
-        with open(st.session_state["pdf_file"], "rb") as f:
-            st.download_button("📄 Download PDF", f, file_name=st.session_state["pdf_file"])
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔙 Back"):
-            st.session_state["page"] = "welcome"
-            st.session_state["show_summary"] = False
-            st.session_state["pdf_ready"] = False
-    with col2:
-        if st.button("Logout"):
-            st.session_state.clear()
-            st.session_state["page"] = "login"
-            st.stop()

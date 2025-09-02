@@ -47,7 +47,8 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
 
         logo_path = "Redsand Logo_White.png"
         if os.path.exists(logo_path):
-            logo = Image(logo_path, width=1.8*inch, preserveAspectRatio=True, mask='auto')
+            logo = Image(logo_path)
+            logo._restrictSize(1.8*inch, 0.6*inch)  # keeps proportions within bounding box
         else:
             logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
 

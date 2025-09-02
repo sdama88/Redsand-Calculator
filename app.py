@@ -54,6 +54,67 @@ if st.session_state["page"] == "login":
             else:
                 st.error("Invalid partner code or password.")
 
+# ------------------ LOGOUT BUTTON ------------------
+if st.session_state['logged_in']:
+    if st.button("Logout"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.experimental_rerun()
+
+# ------------------ PDF GENERATOR ------------------
+def generate_pdf(filename, summary_data, partner_name):
+    doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    normal_style = styles['Normal']
+    title_style = styles['Title']
+    title_style.fontSize = 18
+    normal_style.fontSize = 11
+    story = []
+
+    logo_path = "Redsand Logo_White.png"
+    if os.path.exists(logo_path):
+        story.append(Image(logo_path, width=2.5*inch, height=0.8*inch))
+    else:
+        story.append(Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920"))))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Redsand Partner Configuration Summary", title_style))
+    story.append(Paragraph(datetime.now().strftime("%A, %d %B %Y — %H:%M:%S"), normal_style))
+    story.append(Spacer(1, 18))
+    story.append(Paragraph(f"<b>Partner:</b> {partner_name}", normal_style))
+    story.append(Spacer(1, 12))
+
+    table_data = [["Field", "Value"]] + summary_data
+    table = Table(table_data, hAlign='LEFT', colWidths=[150, 300])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#d71920")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 24))
+
+    disclaimer_style = ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)
+    disclaimer_text = (
+        "<b>Disclaimer:</b> The pricing provided in this summary is indicative only. "
+        "Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, "
+        "service-level agreements, hardware availability, and customer-specific requirements. "
+        "Please contact Redsand for an official quote.")
+    story.append(Paragraph(disclaimer_text, disclaimer_style))
+
+    doc.build(story)
+
+# ------------------ BACK BUTTON ------------------
+if st.session_state.get("page") == "configure":
+    if st.button("🔙 Back"):
+        st.session_state["page"] = "welcome"
+
+
 # ------------------ WELCOME PAGE ------------------
 elif st.session_state["page"] == "welcome":
     if st.session_state['admin']:

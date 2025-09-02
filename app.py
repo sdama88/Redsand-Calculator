@@ -28,6 +28,10 @@ if "logged_in" not in st.session_state:
     st.session_state['logged_in'] = False
 if "admin" not in st.session_state:
     st.session_state['admin'] = False
+if "show_summary" not in st.session_state:
+    st.session_state["show_summary"] = False
+if "pdf_ready" not in st.session_state:
+    st.session_state["pdf_ready"] = False
 
 # ------------------ PDF GENERATOR ------------------
 def generate_pdf(filename, summary_data, partner_name):
@@ -77,6 +81,29 @@ def generate_pdf(filename, summary_data, partner_name):
 
     doc.build(story)
 
+# ------------------ CONFIG LOGGING ------------------
+def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
+    log_row = {
+        "timestamp": datetime.now().isoformat(),
+        "partner_code": partner_code,
+        "partner_name": partner_name,
+        "mode": mode,
+        "use_case_or_selection": use_case,
+        "configuration": config,
+        "gpu_type": gpu_type,
+        "quantity": qty,
+        "monthly": monthly,
+        "yearly": yearly,
+        "three_year_total": total_3yr,
+        "pdf_file": pdf_file
+    }
+    try:
+        log_df = pd.read_csv("config_log.csv")
+        log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
+    except FileNotFoundError:
+        log_df = pd.DataFrame([log_row])
+    log_df.to_csv("config_log.csv", index=False)
+
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":
     st.title("🔐 Redsand Partner Portal")
@@ -104,6 +131,9 @@ if st.session_state["page"] == "login":
 
 # ------------------ WELCOME PAGE ------------------
 elif st.session_state["page"] == "welcome":
+    st.session_state["show_summary"] = False
+    st.session_state["pdf_ready"] = False
+
     if st.session_state['admin']:
         st.subheader("🔧 Admin Panel")
         try:
@@ -133,101 +163,99 @@ elif st.session_state["page"] == "welcome":
 
 # ------------------ CONFIGURATION PAGE ------------------
 elif st.session_state["page"] == "configure":
-    def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
-        log_row = {
-            "timestamp": datetime.now().isoformat(),
-            "partner_code": partner_code,
-            "partner_name": partner_name,
-            "mode": mode,
-            "use_case_or_selection": use_case,
-            "configuration": config,
-            "gpu_type": gpu_type,
-            "quantity": qty,
-            "monthly": monthly,
-            "yearly": yearly,
-            "three_year_total": total_3yr,
-            "pdf_file": pdf_file
-        }
-        try:
-            log_df = pd.read_csv("config_log.csv")
-            log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
-        except FileNotFoundError:
-            log_df = pd.DataFrame([log_row])
-        log_df.to_csv("config_log.csv", index=False)
+    if not st.session_state["show_summary"]:
+        mode = st.session_state['mode']
+        if mode == "🔍 Use Case Recommendation":
+            use_case = st.session_state['use_case']
+            users = st.session_state['users']
+            if use_case == "Voicebot":
+                selected_config = "RedBox Voice"
+                config_row = configs[configs["configuration_name"] == selected_config].iloc[0]
+                final_gpu = config_row["gpu_type"]
+                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+                users_per_box = workload_row["users_per_gpu"]
+                num_boxes = max(1, int(users / users_per_box))
+            else:
+                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+                base_gpu = workload_row["gpu_type"]
+                users_per_box = workload_row["users_per_gpu"]
+                num_boxes = max(1, int(users / users_per_box))
 
-    mode = st.session_state['mode']
-    if mode == "🔍 Use Case Recommendation":
-        use_case = st.session_state['use_case']
-        users = st.session_state['users']
-        if use_case == "Voicebot":
-            selected_config = "RedBox Voice"
-            config_row = configs[configs["configuration_name"] == selected_config].iloc[0]
-            final_gpu = config_row["gpu_type"]
-            workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
-            users_per_box = workload_row["users_per_gpu"]
-            num_boxes = max(1, int(users / users_per_box))
-        else:
-            workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
-            base_gpu = workload_row["gpu_type"]
-            users_per_box = workload_row["users_per_gpu"]
-            num_boxes = max(1, int(users / users_per_box))
+                upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
+                final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
 
-            upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
-            final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
+                matching_configs = configs[configs["gpu_type"] == final_gpu]
+                if matching_configs.empty():
+                    st.error(f"No configuration available for GPU type {final_gpu}.")
+                    st.stop()
+                selected_config = matching_configs.iloc[0]["configuration_name"]
 
-            matching_configs = configs[configs["gpu_type"] == final_gpu]
-            if matching_configs.empty:
-                st.error(f"No configuration available for GPU type {final_gpu}.")
-                st.stop()
-            selected_config = matching_configs.iloc[0]["configuration_name"]
+            st.session_state.update({
+                "summary_mode": "Auto",
+                "summary_use_case": use_case,
+                "summary_gpu": final_gpu,
+                "summary_config": selected_config,
+                "summary_qty": num_boxes
+            })
 
-        price_row = pricing[pricing["configuration_name"] == selected_config]
-        price_per_box = price_row["monthly_price_usd"].values[0]
-        monthly = price_per_box * num_boxes
-        yearly = monthly * 12
-        total_3yr = yearly * 3
+        elif mode == "✋ Manual Selection":
+            selected_config = st.session_state['manual_config']
+            quantity = st.session_state['manual_qty']
+            st.session_state.update({
+                "summary_mode": "Manual",
+                "summary_use_case": "Manual",
+                "summary_gpu": "",
+                "summary_config": selected_config,
+                "summary_qty": quantity
+            })
 
-        summary_data = [
-            ["Use Case", use_case],
-            ["GPU Type", final_gpu],
-            ["Boxes Needed", num_boxes],
-            ["Configuration", selected_config],
-            ["Monthly Cost", f"${monthly:,.0f}"],
-            ["Yearly Cost", f"${yearly:,.0f}"],
-            ["3-Year Total", f"${total_3yr:,.0f}"]
-        ]
+        st.session_state["show_summary"] = True
 
-        filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        generate_pdf(filename, summary_data, st.session_state['partner_name'])
-        st.download_button("📄 Download PDF", open(filename, "rb"), file_name=filename)
-        log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Auto", use_case, selected_config, final_gpu, num_boxes, monthly, yearly, total_3yr, filename)
+    # Show Summary Section
+    st.subheader("📋 Configuration Summary")
+    qty = st.session_state["summary_qty"]
+    config = st.session_state["summary_config"]
+    gpu = st.session_state["summary_gpu"]
+    use_case = st.session_state["summary_use_case"]
+    price_row = pricing[pricing["configuration_name"] == config]
+    price_per_box = price_row["monthly_price_usd"].values[0]
+    monthly = price_per_box * qty
+    yearly = monthly * 12
+    total_3yr = yearly * 3
 
-    elif mode == "✋ Manual Selection":
-        selected_config = st.session_state['manual_config']
-        quantity = st.session_state['manual_qty']
-        price_row = pricing[pricing["configuration_name"] == selected_config]
-        price_per_box = price_row["monthly_price_usd"].values[0]
-        monthly = price_per_box * quantity
-        yearly = monthly * 12
-        total_3yr = yearly * 3
+    summary_data = [
+        ["Use Case", use_case],
+        ["GPU Type", gpu],
+        ["Boxes/Units", qty],
+        ["Configuration", config],
+        ["Monthly Cost", f"${monthly:,.0f}"],
+        ["Yearly Cost", f"${yearly:,.0f}"],
+        ["3-Year Total", f"${total_3yr:,.0f}"]
+    ]
 
-        summary_data = [
-            ["Manual Selection", selected_config],
-            ["Quantity", quantity],
-            ["Monthly Cost", f"${monthly:,.0f}"],
-            ["Yearly Cost", f"${yearly:,.0f}"],
-            ["3-Year Total", f"${total_3yr:,.0f}"]
-        ]
+    for row in summary_data:
+        st.write(f"**{row[0]}:** {row[1]}")
 
-        filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        generate_pdf(filename, summary_data, st.session_state['partner_name'])
-        st.download_button("📄 Download PDF", open(filename, "rb"), file_name=filename)
-        log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Manual", "Manual", selected_config, "", quantity, monthly, yearly, total_3yr, filename)
+    if not st.session_state["pdf_ready"]:
+        if st.button("Generate PDF"):
+            filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+            generate_pdf(filename, summary_data, st.session_state['partner_name'])
+            log_config(st.session_state['partner_code'], st.session_state['partner_name'], st.session_state["summary_mode"], use_case, config, gpu, qty, monthly, yearly, total_3yr, filename)
+            st.session_state["pdf_file"] = filename
+            st.session_state["pdf_ready"] = True
 
-    if st.button("🔙 Back"):
-        st.session_state["page"] = "welcome"
+    if st.session_state["pdf_ready"]:
+        with open(st.session_state["pdf_file"], "rb") as f:
+            st.download_button("📄 Download PDF", f, file_name=st.session_state["pdf_file"])
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.session_state["page"] = "login"
-        st.stop()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔙 Back"):
+            st.session_state["page"] = "welcome"
+            st.session_state["show_summary"] = False
+            st.session_state["pdf_ready"] = False
+    with col2:
+        if st.button("Logout"):
+            st.session_state.clear()
+            st.session_state["page"] = "login"
+            st.stop()

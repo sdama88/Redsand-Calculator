@@ -10,7 +10,7 @@ import os
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
 ADMIN_EMAIL = "sdama@redsand.ai"
-ADMIN_PASSWORD = "redsandadmin123"
+
 
 @st.cache_data
 def load_data():

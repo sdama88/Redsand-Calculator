@@ -38,12 +38,17 @@ if "quote_id" not in st.session_state:
 def safe_logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
-    # Reinitialize required keys to avoid KeyError on rerun
     st.session_state["page"] = "login"
     st.session_state["logged_in"] = False
     st.session_state["admin"] = False
     st.session_state["pdf_ready"] = False
     st.session_state["quote_id"] = str(uuid.uuid4())[:8]
+    st.experimental_rerun()
+
+# ------------------ NAVIGATION HELPER ------------------
+def go_to(page):
+    st.session_state["page"] = page
+    st.experimental_rerun()
 
 # ------------------ PDF GENERATOR ------------------
 def generate_pdf(filename, summary_data, partner_name, quote_id):
@@ -119,11 +124,11 @@ if st.session_state["page"] == "login":
     login_input = st.text_input("Partner Code or Admin Email")
     password_input = st.text_input("Password", type="password")
 
-    if st.button("Login", key="login_btn"):
+    if st.button("Login", key="login_btn" ):
         if login_input == ADMIN_EMAIL:
             st.session_state['admin'] = True
             st.session_state['logged_in'] = True
-            st.session_state["page"] = "welcome"
+            go_to("welcome")
         else:
             match = credentials[(credentials['partner_code'] == login_input) & (credentials['password'] == password_input)]
             if not match.empty:
@@ -131,7 +136,7 @@ if st.session_state["page"] == "login":
                 st.session_state['partner_code'] = match.iloc[0]['partner_code']
                 st.session_state['admin'] = False
                 st.session_state['logged_in'] = True
-                st.session_state["page"] = "welcome"
+                go_to("welcome")
             else:
                 st.error("Invalid partner code or password.")
 
@@ -141,11 +146,9 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.image("Redsand Logo_White.png", width=200)
     st.subheader(f"🔐 Welcome, {st.session_state['partner_name']}")
 
-    # Logout button (safe)
     if st.button("🔓 Logout", key="logout_welcome"):
         safe_logout()
 
-    # Define layout columns
     col_left, col_right = st.columns([2, 3])
 
     with col_left:
@@ -198,13 +201,13 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         nav1, nav2, nav3, nav4 = st.columns([1,1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_welcome"):
-                st.session_state["page"] = "welcome"
+                go_to("welcome")
         with nav2:
             if st.button("🔙 Back", key="back_welcome"):
-                st.session_state["page"] = "welcome"
+                go_to("welcome")
         with nav3:
             if st.button("➡️ Generate Quote", key="gen_quote"):
-                st.session_state["page"] = "quote_summary"
+                go_to("quote_summary")
         with nav4:
             if st.button("🔓 Logout", key="logout_welcome2"):
                 safe_logout()
@@ -238,7 +241,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         st.image("Redsand Logo_White.png", width=200)
     st.subheader("🧾 Quote Summary")
 
-    # Logout button (safe)
     if st.button("🔓 Logout", key="logout_quote"):
         safe_logout()
 
@@ -285,7 +287,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         if os.path.exists(filename):
             with open(filename, "rb") as f:
                 if st.download_button("📄 Download PDF", f, file_name=filename):
-                    # Log only when PDF is downloaded
                     log_row = {
                         "timestamp": datetime.now().isoformat(),
                         "partner_code": st.session_state.get('partner_code',''),
@@ -311,10 +312,10 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_quote"):
-                st.session_state["page"] = "welcome"
+                go_to("welcome")
         with nav2:
             if st.button("🔙 Back", key="back_quote"):
-                st.session_state["page"] = "welcome"
+                go_to("welcome")
         with nav3:
             if st.button("🔓 Logout", key="logout_quote2"):
                 safe_logout()
@@ -325,13 +326,68 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.image("Redsand Logo_White.png", width=200)
     st.subheader("🛠️ Admin Panel — All Quotes")
 
-    # Logout button (safe)
     if st.button("🔓 Logout", key="logout_admin"):
         safe_logout()
 
     try:
         full_log = pd.read_csv("config_log.csv")
-        st.dataframe(full_log.sort_values("timestamp", ascending=False))
-        st.download_button("📥 Download Full Log", full_log.to_csv(index=False), file_name="config_log.csv")
+        full_log["timestamp"] = pd.to_datetime(full_log["timestamp"], errors="coerce")
+
+        # 🔹 Metrics bar
+        total_quotes = len(full_log)
+        total_partners = full_log["partner_name"].nunique()
+        latest_quote_date = full_log["timestamp"].max().strftime("%d %b %Y %H:%M") if not full_log.empty else "N/A"
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("📄 Total Quotes", total_quotes)
+        col2.metric("👥 Total Partners", total_partners)
+        col3.metric("🕒 Latest Quote", latest_quote_date)
+
+        # Partner filter
+        partner_options = ["All"] + sorted(full_log["partner_name"].dropna().unique().tolist())
+        selected_partner = st.selectbox("Filter by Partner", partner_options, key="admin_partner_filter")
+
+        # Date range filter
+        min_date = full_log["timestamp"].min().date() if not full_log.empty else datetime.today().date()
+        max_date = full_log["timestamp"].max().date() if not full_log.empty else datetime.today().date()
+        start_date, end_date = st.date_input(
+            "Filter by Date Range",
+            [min_date, max_date],
+            min_value=min_date,
+            max_value=max_date,
+            key="admin_date_filter"
+        )
+
+        # Quote ID search
+        search_quote_id = st.text_input("Search by Quote ID", key="admin_quote_search")
+
+        # Apply filters
+        filtered_log = full_log
+        if selected_partner != "All":
+            filtered_log = filtered_log[filtered_log["partner_name"] == selected_partner]
+
+        if len([start_date, end_date]) == 2:
+            filtered_log = filtered_log[
+                (filtered_log["timestamp"].dt.date >= start_date) &
+                (filtered_log["timestamp"].dt.date <= end_date)
+            ]
+
+        if search_quote_id.strip():
+            filtered_log = filtered_log[filtered_log["quote_id"].astype(str).str.contains(search_quote_id.strip(), case=False, na=False)]
+
+        st.dataframe(filtered_log.sort_values("timestamp", ascending=False))
+        st.download_button(
+            "📥 Download Filtered Log",
+            filtered_log.to_csv(index=False),
+            file_name="config_log.csv"
+        )
     except FileNotFoundError:
         st.info("No logs found yet.")
+
+    nav1, nav2 = st.columns([1, 1])
+    with nav1:
+        if st.button("🏠 Home", key="home_admin"):
+            go_to("welcome")
+    with nav2:
+        if st.button("🔙 Back", key="back_admin"):
+            go_to("welcome")

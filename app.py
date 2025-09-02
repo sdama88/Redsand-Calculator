@@ -156,7 +156,6 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         with nav3:
             if st.button("➡️ Generate Quote", key="gen_quote"):
                 st.session_state["page"] = "quote_summary"
-                st.experimental_rerun()
 
     with col_right:
         st.markdown("### 🔍 Compare Configurations")
@@ -242,6 +241,7 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
                 except FileNotFoundError:
                     log_df = pd.DataFrame([log_row])
                 log_df.to_csv("config_log.csv", index=False)
+                st.success("✅ Quote saved to history")
 
         nav1, nav2, nav3, nav4 = st.columns([1,1,1,1])
         with nav1:

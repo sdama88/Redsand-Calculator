@@ -91,7 +91,7 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
             "<b>Disclaimer:</b> The pricing provided in this summary is indicative only. "
             "Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, "
             "service-level agreements, hardware availability, and customer-specific requirements. "
-            "Please contact Redsand at <b>sales@redsand.ai</b> for an official quote or custom configuration."
+            "Please contact Redsand at <b>hello@redsand.ai</b> for an official quote or custom configuration."
         )
         story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
 
@@ -251,17 +251,37 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         st.markdown("### Pricing Details")
         st.table(pricing_details)
 
-        st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at sales@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
+        st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
         filename = f"Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
         summary_data = [["Use Case", use_case],["GPU Type", final_gpu],["Configuration", selected_config],["Units", num_units],["Monthly Cost", f"${monthly:,.0f}"],["Yearly Cost", f"${yearly:,.0f}"],["3-Year Total", f"${total_3yr:,.0f}"]]
         generate_pdf(filename, summary_data, st.session_state.get('partner_name',''), quote_id)
 
-if os.path.exists(filename):
-    with open(filename, "rb") as f:
-        st.download_button("📄 Download PDF", f, file_name=filename)
-else:
-    st.error("PDF could not be generated. Please try again.")
+        if os.path.exists(filename):
+            with open(filename, "rb") as f:
+                if st.download_button("📄 Download PDF", f, file_name=filename):
+                    # Log only when PDF is downloaded
+                    log_row = {
+                        "timestamp": datetime.now().isoformat(),
+                        "partner_code": st.session_state.get('partner_code',''),
+                        "partner_name": st.session_state.get('partner_name',''),
+                        "quote_id": quote_id,
+                        "use_case": use_case,
+                        "configuration": selected_config,
+                        "gpu_type": final_gpu,
+                        "units": num_units,
+                        "monthly": monthly,
+                        "yearly": yearly,
+                        "three_year_total": total_3yr,
+                        "pdf_file": filename
+                    }
+                    try:
+                        log_df = pd.read_csv("config_log.csv")
+                        log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
+                    except FileNotFoundError:
+                        log_df = pd.DataFrame([log_row])
+                    log_df.to_csv("config_log.csv", index=False)
+                    st.success("✅ Quote saved to history")
 
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
@@ -274,3 +294,19 @@ else:
             if st.button("🔓 Logout", key="logout_quote"):
                 st.session_state.clear()
                 st.experimental_rerun()
+
+# ------------------ ADMIN PANEL ------------------
+elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and st.session_state.get("admin"):
+    if os.path.exists("Redsand Logo_White.png"):
+        st.image("Redsand Logo_White.png", width=200)
+    st.subheader("🛠️ Admin Panel — All Quotes")
+    try:
+        full_log = pd.read_csv("config_log.csv")
+        st.dataframe(full_log.sort_values("timestamp", ascending=False))
+        st.download_button("📥 Download Full Log", full_log.to_csv(index=False), file_name="config_log.csv")
+    except FileNotFoundError:
+        st.info("No logs found yet.")
+
+    if st.button("🔓 Logout", key="logout_admin"):
+        st.session_state.clear()
+        st.session_state["page"] = "login"

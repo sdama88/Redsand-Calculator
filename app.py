@@ -156,6 +156,7 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         with nav3:
             if st.button("➡️ Generate Quote", key="gen_quote"):
                 st.session_state["page"] = "quote_summary"
+                st.stop()
 
     with col_right:
         st.markdown("### 📚 My Quote History")

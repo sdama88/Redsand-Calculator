@@ -192,7 +192,6 @@ if st.session_state["page"] == "login":
                 st.session_state["page"] = "welcome"
             else:
                 st.error("Invalid partner code or password.")
-
 # ------------------ WELCOME PAGE ------------------
 elif st.session_state["page"] == "welcome":
     st.session_state["show_summary"] = False

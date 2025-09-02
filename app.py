@@ -125,9 +125,11 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         st.markdown("### 🚀 Start a New Quote")
         selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
         num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
-        if st.button("Begin Configuration"):
+        quote_mode = st.radio("Choose Mode", ["Auto (Recommended)", "Manual Selection"], key="quote_mode")
+        if st.button("Generate Quote"):
             st.session_state["use_case"] = selected_use_case
             st.session_state["num_users"] = num_users
+            st.session_state["quote_mode"] = "Auto" if "Auto" in quote_mode else "Manual"
             st.session_state["page"] = "configure"
 
     with col_right:
@@ -158,6 +160,83 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         if st.button("🔓 Logout"):
             st.session_state.clear()
             st.experimental_rerun()
+
+# ------------------ CONFIGURATION SUMMARY PAGE ------------------
+if st.session_state.get("page") == "configure" and st.session_state.get("logged_in"):
+    st.subheader("🧾 Quote Summary")
+    use_case = st.session_state["use_case"]
+    users = st.session_state["num_users"]
+    mode = st.session_state.get("quote_mode", "Auto")
+    quote_id = st.session_state["quote_id"]
+
+    if use_case == "Voice Bot":
+        config_row = configs[configs["configuration_name"] == "RedBox Voice"].iloc[0]
+        selected_config = config_row["configuration_name"]
+        final_gpu = config_row["gpu_type"]
+        users_per_box = workloads[workloads["workload_name"] == use_case].iloc[0]["users_per_gpu"]
+        num_boxes = max(1, int(users / users_per_box))
+    elif mode == "Auto":
+        workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
+        base_gpu = workload_row["gpu_type"]
+        users_per_box = workload_row["users_per_gpu"]
+        num_boxes = max(1, int(users / users_per_box))
+        upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
+        final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
+        matching_configs = configs[configs["gpu_type"] == final_gpu]
+        selected_config = matching_configs.iloc[0]["configuration_name"]
+    else:
+        selected_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique(), key="manual_select")
+        num_boxes = st.number_input("Quantity", min_value=1, step=1, key="manual_qty")
+        final_gpu = configs[configs["configuration_name"] == selected_config].iloc[0]["gpu_type"]
+
+    price_row = pricing[pricing["configuration_name"] == selected_config]
+    if price_row.empty:
+        st.error(f"No pricing found for {selected_config}.")
+    else:
+        price_per_box = price_row["monthly_price_usd"].values[0]
+        monthly = price_per_box * num_boxes
+        yearly = monthly * 12
+        total_3yr = yearly * 3
+
+        st.markdown(f"**Partner:** {st.session_state['partner_name']}  ")
+        st.markdown(f"**Quote ID:** `{quote_id}`  ")
+        st.markdown(f"**Use Case:** {use_case}  ")
+        st.markdown(f"**GPU Type:** {final_gpu}  ")
+        st.markdown(f"**Configuration:** {selected_config}  ")
+        st.markdown(f"**Boxes Needed:** {num_boxes}  ")
+        st.metric("💰 Monthly", f"${monthly:,.0f}")
+        st.metric("📅 Yearly", f"${yearly:,.0f}")
+        st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+
+        filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+        summary_data = [
+            ["Partner", st.session_state['partner_name']],
+            ["Quote ID", quote_id],
+            ["Use Case", use_case],
+            ["GPU Type", final_gpu],
+            ["Boxes Needed", num_boxes],
+            ["Configuration", selected_config],
+            ["Monthly Cost", f"${monthly:,.0f}"],
+            ["Yearly Cost", f"${yearly:,.0f}"],
+            ["3-Year Total", f"${total_3yr:,.0f}"]
+        ]
+        generate_pdf(filename, summary_data, st.session_state['partner_name'], quote_id)
+        with open(filename, "rb") as f:
+            st.download_button("📄 Download PDF", f, file_name=filename)
+        st.success("PDF quote generated successfully.")
+        log_config(st.session_state['partner_code'], st.session_state['partner_name'], mode, use_case, selected_config, final_gpu, num_boxes, monthly, yearly, total_3yr, filename, quote_id)
+
+        nav1, nav2, nav3 = st.columns([1,1,1])
+        with nav1:
+            if st.button("🏠 Home"):
+                st.session_state["page"] = "welcome"
+        with nav2:
+            if st.button("🔙 Back"):
+                st.session_state["page"] = "welcome"
+        with nav3:
+            if st.button("🔓 Logout"):
+                st.session_state.clear()
+                st.experimental_rerun()
 
 # ------------------ CONTACT CTA ------------------
 if st.session_state.get("pdf_ready"):
@@ -192,37 +271,9 @@ if st.session_state["page"] == "login":
                 st.session_state["page"] = "welcome"
             else:
                 st.error("Invalid partner code or password.")
-# ------------------ WELCOME PAGE ------------------
-elif st.session_state["page"] == "welcome":
-    st.session_state["show_summary"] = False
-    st.session_state["pdf_ready"] = False
 
-    if st.session_state['admin']:
-        st.subheader("🔧 Admin Panel")
-        try:
-            logs = pd.read_csv("config_log.csv")
-            st.dataframe(logs)
-            st.download_button("Download All Logs", logs.to_csv(index=False), file_name="config_log.csv")
-        except FileNotFoundError:
-            st.info("No configuration logs found yet.")
-    else:
-        st.subheader(f"Welcome, {st.session_state['partner_name']}")
-        mode = st.radio("Choose Mode", ["🔍 Use Case Recommendation", "✋ Manual Selection"])
-        st.session_state['mode'] = mode
-        if mode == "🔍 Use Case Recommendation":
-            st.session_state['use_case'] = st.selectbox("Select Use Case", workloads['workload_name'].unique())
-            st.session_state['users'] = st.number_input("Number of Concurrent Users", min_value=1, step=1)
-        else:
-            st.session_state['manual_config'] = st.selectbox("Choose Configuration", configs["configuration_name"].unique())
-            st.session_state['manual_qty'] = st.number_input("Quantity", min_value=1, step=1)
 
-        if st.button("Next"):
-            st.session_state["page"] = "configure"
 
-    if st.button("Logout"):
-        st.session_state.clear()
-        st.session_state["page"] = "login"
-        st.stop()
 
 # ------------------ CONFIGURATION PAGE ------------------
 elif st.session_state["page"] == "configure":

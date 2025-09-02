@@ -275,33 +275,7 @@ if st.session_state["page"] == "login":
 
 
 
-# ------------------ CONFIGURATION PAGE ------------------
-elif st.session_state["page"] == "configure":
-    if not st.session_state["show_summary"]:
-        mode = st.session_state['mode']
-        if mode == "🔍 Use Case Recommendation":
-            use_case = st.session_state['use_case']
-            users = st.session_state['users']
-            if use_case == "Voicebot":
-                selected_config = "RedBox Voice"
-                config_row = configs[configs["configuration_name"] == selected_config].iloc[0]
-                final_gpu = config_row["gpu_type"]
-                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
-                users_per_box = workload_row["users_per_gpu"]
-                num_boxes = max(1, int(users / users_per_box))
-            else:
-                workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
-                base_gpu = workload_row["gpu_type"]
-                users_per_box = workload_row["users_per_gpu"]
-                num_boxes = max(1, int(users / users_per_box))
 
-                upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
-                final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
-
-                matching_configs = configs[configs["gpu_type"] == final_gpu]
-                if matching_configs.empty:
-                    st.error(f"No configuration available for GPU type {final_gpu}.")
-                    st.stop()
                 selected_config = matching_configs.iloc[0]["configuration_name"]
 
             st.session_state.update({

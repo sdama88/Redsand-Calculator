@@ -185,7 +185,7 @@ elif st.session_state["page"] == "configure":
                 final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
 
                 matching_configs = configs[configs["gpu_type"] == final_gpu]
-                if matching_configs.empty():
+                if matching_configs.empty:
                     st.error(f"No configuration available for GPU type {final_gpu}.")
                     st.stop()
                 selected_config = matching_configs.iloc[0]["configuration_name"]

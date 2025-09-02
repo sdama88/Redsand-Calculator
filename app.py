@@ -43,13 +43,12 @@ def safe_logout():
     st.session_state["admin"] = False
     st.session_state["pdf_ready"] = False
     st.session_state["quote_id"] = str(uuid.uuid4())[:8]
-    st.experimental_rerun()
+    st.rerun()
 
 # ------------------ NAVIGATION HELPER ------------------
 def go_to(page):
     st.session_state["page"] = page
-    st.experimental_rerun()
-
+    st.rerun()
 # ------------------ PDF GENERATOR ------------------
 def generate_pdf(filename, summary_data, partner_name, quote_id):
     try:

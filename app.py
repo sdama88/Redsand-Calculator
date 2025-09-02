@@ -127,6 +127,7 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
         selected_mode = st.radio("Choose Mode", ["Auto (Recommended)", "Manual Selection"], key="quote_mode_selection")
         if st.button("Generate Quote"):
+    # Ensure proper indentation
     st.session_state["use_case"] = selected_use_case
     st.session_state["num_users"] = num_users
     st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"

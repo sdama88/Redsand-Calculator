@@ -29,38 +29,6 @@ if "logged_in" not in st.session_state:
 if "admin" not in st.session_state:
     st.session_state['admin'] = False
 
-# ------------------ LOGIN PAGE ------------------
-if st.session_state["page"] == "login":
-    st.title("🔐 Redsand Partner Portal")
-    col1, col2 = st.columns(2)
-    with col1:
-        login_input = st.text_input("Partner Code or Admin Email")
-    with col2:
-        password_input = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if login_input == ADMIN_EMAIL:
-            st.session_state['admin'] = True
-            st.session_state['logged_in'] = True
-            st.session_state["page"] = "welcome"
-        else:
-            match = credentials[(credentials['partner_code'] == login_input) & (credentials['password'] == password_input)]
-            if not match.empty:
-                st.session_state['partner_name'] = match.iloc[0]['partner_name']
-                st.session_state['partner_code'] = match.iloc[0]['partner_code']
-                st.session_state['admin'] = False
-                st.session_state['logged_in'] = True
-                st.session_state["page"] = "welcome"
-            else:
-                st.error("Invalid partner code or password.")
-
-# ------------------ LOGOUT BUTTON ------------------
-if st.session_state['logged_in']:
-    if st.button("Logout"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.experimental_rerun()
-
 # ------------------ PDF GENERATOR ------------------
 def generate_pdf(filename, summary_data, partner_name):
     doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
@@ -109,11 +77,42 @@ def generate_pdf(filename, summary_data, partner_name):
 
     doc.build(story)
 
+# ------------------ LOGIN PAGE ------------------
+if st.session_state["page"] == "login":
+    st.title("🔐 Redsand Partner Portal")
+    col1, col2 = st.columns(2)
+    with col1:
+        login_input = st.text_input("Partner Code or Admin Email")
+    with col2:
+        password_input = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if login_input == ADMIN_EMAIL:
+            st.session_state['admin'] = True
+            st.session_state['logged_in'] = True
+            st.session_state["page"] = "welcome"
+        else:
+            match = credentials[(credentials['partner_code'] == login_input) & (credentials['password'] == password_input)]
+            if not match.empty:
+                st.session_state['partner_name'] = match.iloc[0]['partner_name']
+                st.session_state['partner_code'] = match.iloc[0]['partner_code']
+                st.session_state['admin'] = False
+                st.session_state['logged_in'] = True
+                st.session_state["page"] = "welcome"
+            else:
+                st.error("Invalid partner code or password.")
+
+# ------------------ LOGOUT BUTTON ------------------
+if st.session_state['logged_in']:
+    if st.button("Logout"):
+        st.session_state.clear()
+        st.session_state["page"] = "login"
+        st.stop()
+
 # ------------------ BACK BUTTON ------------------
 if st.session_state.get("page") == "configure":
     if st.button("🔙 Back"):
         st.session_state["page"] = "welcome"
-
 
 # ------------------ WELCOME PAGE ------------------
 elif st.session_state["page"] == "welcome":
@@ -195,18 +194,19 @@ elif st.session_state["page"] == "configure":
         yearly = monthly * 12
         total_3yr = yearly * 3
 
-        st.success("Configuration Recommended")
-        st.write(f"**Configuration:** {selected_config}")
-        st.write(f"**GPU Type:** {final_gpu}")
-        st.write(f"**Boxes Needed:** {num_boxes}")
-        st.metric("💰 Monthly", f"${monthly:,.0f}")
-        st.metric("📅 Yearly", f"${yearly:,.0f}")
-        st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+        summary_data = [
+            ["Use Case", use_case],
+            ["GPU Type", final_gpu],
+            ["Boxes Needed", num_boxes],
+            ["Configuration", selected_config],
+            ["Monthly Cost", f"${monthly:,.0f}"],
+            ["Yearly Cost", f"${yearly:,.0f}"],
+            ["3-Year Total", f"${total_3yr:,.0f}"]
+        ]
 
         filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        with open(filename, "wb") as f:
-            pass  # Placeholder
-        st.download_button("📄 Download PDF", b"PDF content placeholder", file_name=filename)
+        generate_pdf(filename, summary_data, st.session_state['partner_name'])
+        st.download_button("📄 Download PDF", open(filename, "rb"), file_name=filename)
         log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Auto", use_case, selected_config, final_gpu, num_boxes, monthly, yearly, total_3yr, filename)
 
     elif mode == "✋ Manual Selection":
@@ -218,15 +218,15 @@ elif st.session_state["page"] == "configure":
         yearly = monthly * 12
         total_3yr = yearly * 3
 
-        st.success("Manual Configuration Selected")
-        st.write(f"**Configuration:** {selected_config}")
-        st.write(f"**Quantity:** {quantity}")
-        st.metric("💰 Monthly", f"${monthly:,.0f}")
-        st.metric("📅 Yearly", f"${yearly:,.0f}")
-        st.metric("🪙 3-Year Total", f"${total_3yr:,.0f}")
+        summary_data = [
+            ["Manual Selection", selected_config],
+            ["Quantity", quantity],
+            ["Monthly Cost", f"${monthly:,.0f}"],
+            ["Yearly Cost", f"${yearly:,.0f}"],
+            ["3-Year Total", f"${total_3yr:,.0f}"]
+        ]
 
         filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        with open(filename, "wb") as f:
-            pass  # Placeholder
-        st.download_button("📄 Download PDF", b"PDF content placeholder", file_name=filename)
+        generate_pdf(filename, summary_data, st.session_state['partner_name'])
+        st.download_button("📄 Download PDF", open(filename, "rb"), file_name=filename)
         log_config(st.session_state['partner_code'], st.session_state['partner_name'], "Manual", "Manual", selected_config, "", quantity, monthly, yearly, total_3yr, filename)

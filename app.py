@@ -156,9 +156,16 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         with nav3:
             if st.button("➡️ Generate Quote", key="gen_quote"):
                 st.session_state["page"] = "quote_summary"
-                st.stop()
+                st.experimental_rerun()
 
     with col_right:
+        st.markdown("### 🔍 Compare Configurations")
+        compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
+        if compare_configs:
+            compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
+            st.dataframe(compare_df.set_index("configuration_name"))
+
+        st.divider()
         st.markdown("### 📚 My Quote History")
         try:
             full_log = pd.read_csv("config_log.csv")
@@ -169,13 +176,6 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
                 st.info("No previous quotes found.")
         except FileNotFoundError:
             st.info("Quote log file not found.")
-
-        st.divider()
-        st.markdown("### 🔍 Compare Configurations")
-        compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
-        if compare_configs:
-            compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
-            st.dataframe(compare_df.set_index("configuration_name"))
 
 # ------------------ QUOTE SUMMARY PAGE ------------------
 if st.session_state.get("page") == "quote_summary" and st.session_state.get("logged_in"):
@@ -220,9 +220,30 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
         summary_data = [["Use Case", use_case],["GPU Type", final_gpu],["Configuration", selected_config],["Boxes Needed", num_boxes],["Monthly Cost", f"${monthly:,.0f}"],["Yearly Cost", f"${yearly:,.0f}"],["3-Year Total", f"${total_3yr:,.0f}"]]
         generate_pdf(filename, summary_data, st.session_state['partner_name'], quote_id)
         with open(filename, "rb") as f:
-            st.download_button("📄 Download PDF", f, file_name=filename)
+            if st.download_button("📄 Download PDF", f, file_name=filename):
+                # Only log when PDF is downloaded
+                log_row = {
+                    "timestamp": datetime.now().isoformat(),
+                    "partner_code": st.session_state['partner_code'],
+                    "partner_name": st.session_state['partner_name'],
+                    "quote_id": quote_id,
+                    "use_case": use_case,
+                    "configuration": selected_config,
+                    "gpu_type": final_gpu,
+                    "quantity": num_boxes,
+                    "monthly": monthly,
+                    "yearly": yearly,
+                    "three_year_total": total_3yr,
+                    "pdf_file": filename
+                }
+                try:
+                    log_df = pd.read_csv("config_log.csv")
+                    log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
+                except FileNotFoundError:
+                    log_df = pd.DataFrame([log_row])
+                log_df.to_csv("config_log.csv", index=False)
 
-        nav1, nav2, nav3 = st.columns([1,1,1])
+        nav1, nav2, nav3, nav4 = st.columns([1,1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_quote"):
                 st.session_state["page"] = "welcome"
@@ -237,11 +258,8 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":
     st.title("🔐 Redsand Partner Portal")
-    col1, col2 = st.columns(2)
-    with col1:
-        login_input = st.text_input("Partner Code or Admin Email")
-    with col2:
-        password_input = st.text_input("Password", type="password")
+    login_input = st.text_input("Partner Code or Admin Email")
+    password_input = st.text_input("Password", type="password")
 
     if st.button("Login", key="login_btn"):
         if login_input == ADMIN_EMAIL:

@@ -47,12 +47,12 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
     # Header with logo in top-right
     logo_path = "Redsand Logo_White.png"
     if os.path.exists(logo_path):
-        logo = Image(logo_path, width=1.5*inch, height=0.5*inch)
+        logo = Image(logo_path, width=1.8*inch)  # keep aspect ratio
     else:
         logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
 
     header = [[Paragraph("Redsand Partner Configuration Summary", title_style), logo]]
-    ht = Table(header, colWidths=[4.5*inch, 1.5*inch])
+    ht = Table(header, colWidths=[4.5*inch, 1.8*inch])
     ht.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
     story.append(ht)
 
@@ -63,7 +63,7 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
     story.append(Spacer(1, 18))
 
     # Split summary_data into config and pricing sections
-    config_rows = [row for row in summary_data if row[0] in ["Use Case", "GPU Type", "Configuration", "Boxes Needed"]]
+    config_rows = [row for row in summary_data if row[0] in ["Use Case", "GPU Type", "Configuration", "Units Needed"]]
     pricing_rows = [row for row in summary_data if "Cost" in row[0] or "Total" in row[0]]
 
     # Config section
@@ -100,6 +100,8 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
 
 # ------------------ WELCOME + CONFIG SELECTOR WITH PREVIEW ------------------
 if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in"):
+    if os.path.exists("Redsand Logo_White.png"):
+        st.image("Redsand Logo_White.png", width=200)
     st.subheader(f"🔐 Welcome, {st.session_state['partner_name']}")
     col_left, col_right = st.columns([2, 3])
 
@@ -114,20 +116,20 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
             config_row = configs[configs["configuration_name"] == "RedBox Voice"].iloc[0]
             preview_config = config_row["configuration_name"]
             preview_gpu = config_row["gpu_type"]
-            users_per_box = workloads[workloads["workload_name"] == selected_use_case].iloc[0]["users_per_gpu"]
-            preview_boxes = max(1, int(num_users / users_per_box))
+            users_per_unit = workloads[workloads["workload_name"] == selected_use_case].iloc[0]["users_per_gpu"]
+            preview_units = max(1, int(num_users / users_per_unit))
         elif "Auto" in selected_mode:
             workload_row = workloads[workloads["workload_name"] == selected_use_case].iloc[0]
             base_gpu = workload_row["gpu_type"]
-            users_per_box = workload_row["users_per_gpu"]
-            preview_boxes = max(1, int(num_users / users_per_box))
+            users_per_unit = workload_row["users_per_gpu"]
+            preview_units = max(1, int(num_users / users_per_unit))
             upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (num_users >= upgrade_rules["user_threshold"])]
             preview_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
             matching_configs = configs[configs["gpu_type"] == preview_gpu]
             preview_config = matching_configs.iloc[0]["configuration_name"]
         else:
             preview_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique(), key="manual_select")
-            preview_boxes = st.number_input("Quantity", min_value=1, step=1, key="manual_qty")
+            preview_units = st.number_input("Units", min_value=1, step=1, key="manual_qty")
             preview_gpu = configs[configs["configuration_name"] == preview_config].iloc[0]["gpu_type"]
 
         # Display config preview in realtime
@@ -135,18 +137,18 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         st.write(f"**Use Case:** {selected_use_case}")
         st.write(f"**GPU Type:** {preview_gpu}")
         st.write(f"**Configuration:** {preview_config}")
-        st.write(f"**Boxes Needed:** {preview_boxes}")
+        st.write(f"**Units Needed:** {preview_units}")
 
         # Save preview to session
         st.session_state["preview_config"] = preview_config
         st.session_state["preview_gpu"] = preview_gpu
-        st.session_state["preview_boxes"] = preview_boxes
+        st.session_state["preview_units"] = preview_units
         st.session_state["use_case"] = selected_use_case
         st.session_state["num_users"] = num_users
         st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
 
         st.divider()
-        nav1, nav2, nav3 = st.columns([1,1,1])
+        nav1, nav2, nav3, nav4 = st.columns([1,1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_welcome"):
                 st.session_state["page"] = "welcome"
@@ -156,6 +158,11 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         with nav3:
             if st.button("➡️ Generate Quote", key="gen_quote"):
                 st.session_state["page"] = "quote_summary"
+                st.stop()
+        with nav4:
+            if st.button("🔓 Logout", key="logout_welcome"):
+                st.session_state.clear()
+                st.experimental_rerun()
 
     with col_right:
         st.markdown("### 🔍 Compare Configurations")
@@ -178,19 +185,21 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
 
 # ------------------ QUOTE SUMMARY PAGE ------------------
 if st.session_state.get("page") == "quote_summary" and st.session_state.get("logged_in"):
+    if os.path.exists("Redsand Logo_White.png"):
+        st.image("Redsand Logo_White.png", width=200)
     st.subheader("🧾 Quote Summary")
     use_case = st.session_state["use_case"]
     selected_config = st.session_state["preview_config"]
     final_gpu = st.session_state["preview_gpu"]
-    num_boxes = st.session_state["preview_boxes"]
+    num_units = st.session_state["preview_units"]
     quote_id = st.session_state["quote_id"]
 
     price_row = pricing[pricing["configuration_name"] == selected_config]
     if price_row.empty:
         st.error(f"No pricing found for {selected_config}.")
     else:
-        price_per_box = price_row["monthly_price_usd"].values[0]
-        monthly = price_per_box * num_boxes
+        price_per_unit = price_row["monthly_price_usd"].values[0]
+        monthly = price_per_unit * num_units
         yearly = monthly * 12
         total_3yr = yearly * 3
 
@@ -198,7 +207,7 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
             ["Use Case", use_case],
             ["GPU Type", final_gpu],
             ["Configuration", selected_config],
-            ["Boxes Needed", num_boxes]
+            ["Units Needed", num_units]
         ]
 
         pricing_details = [
@@ -216,7 +225,7 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at sales@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
         filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        summary_data = [["Use Case", use_case],["GPU Type", final_gpu],["Configuration", selected_config],["Boxes Needed", num_boxes],["Monthly Cost", f"${monthly:,.0f}"],["Yearly Cost", f"${yearly:,.0f}"],["3-Year Total", f"${total_3yr:,.0f}"]]
+        summary_data = [["Use Case", use_case],["GPU Type", final_gpu],["Configuration", selected_config],["Units Needed", num_units],["Monthly Cost", f"${monthly:,.0f}"],["Yearly Cost", f"${yearly:,.0f}"],["3-Year Total", f"${total_3yr:,.0f}"]]
         generate_pdf(filename, summary_data, st.session_state['partner_name'], quote_id)
         with open(filename, "rb") as f:
             if st.download_button("📄 Download PDF", f, file_name=filename):
@@ -229,7 +238,7 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
                     "use_case": use_case,
                     "configuration": selected_config,
                     "gpu_type": final_gpu,
-                    "quantity": num_boxes,
+                    "units": num_units,
                     "monthly": monthly,
                     "yearly": yearly,
                     "three_year_total": total_3yr,
@@ -257,6 +266,8 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
 
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":
+    if os.path.exists("Redsand Logo_White.png"):
+        st.image("Redsand Logo_White.png", width=200)
     st.title("🔐 Redsand Partner Portal")
     login_input = st.text_input("Partner Code or Admin Email")
     password_input = st.text_input("Password", type="password")

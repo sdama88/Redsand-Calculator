@@ -139,6 +139,10 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
     # Logout button (safe)
     if st.button("🔓 Logout", key="logout_welcome"):
         safe_logout()
+
+    # Define layout columns
+    col_left, col_right = st.columns([2, 3])
+
     with col_left:
         st.markdown("### 🚀 Start a New Quote")
 
@@ -197,9 +201,8 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             if st.button("➡️ Generate Quote", key="gen_quote"):
                 st.session_state["page"] = "quote_summary"
         with nav4:
-            if st.button("🔓 Logout", key="logout_welcome"):
-                st.session_state.clear()
-                st.session_state["page"] = "login"
+            if st.button("🔓 Logout", key="logout_welcome2"):
+                safe_logout()
 
     with col_right:
         st.markdown("### 🔍 Compare Configurations")
@@ -212,11 +215,15 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.markdown("### 📚 My Quote History")
         try:
             full_log = pd.read_csv("config_log.csv")
-            partner_log = full_log[full_log['partner_code'] == st.session_state['partner_code']]
-            if not partner_log.empty:
-                st.dataframe(partner_log.sort_values("timestamp", ascending=False))
+            partner_code = st.session_state.get('partner_code')
+            if partner_code:
+                partner_log = full_log[full_log['partner_code'] == partner_code]
+                if not partner_log.empty:
+                    st.dataframe(partner_log.sort_values("timestamp", ascending=False))
+                else:
+                    st.info("No previous quotes found.")
             else:
-                st.info("No previous quotes found.")
+                st.info("No partner code found for this session.")
         except FileNotFoundError:
             st.info("Quote log file not found.")
 
@@ -304,9 +311,8 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             if st.button("🔙 Back", key="back_quote"):
                 st.session_state["page"] = "welcome"
         with nav3:
-            if st.button("🔓 Logout", key="logout_quote"):
-                st.session_state.clear()
-                st.session_state["page"] = "login"
+            if st.button("🔓 Logout", key="logout_quote2"):
+                safe_logout()
 
 # ------------------ ADMIN PANEL ------------------
 elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and st.session_state.get("admin"):
@@ -317,13 +323,10 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
     # Logout button (safe)
     if st.button("🔓 Logout", key="logout_admin"):
         safe_logout()
+
     try:
         full_log = pd.read_csv("config_log.csv")
         st.dataframe(full_log.sort_values("timestamp", ascending=False))
         st.download_button("📥 Download Full Log", full_log.to_csv(index=False), file_name="config_log.csv")
     except FileNotFoundError:
         st.info("No logs found yet.")
-
-    if st.button("🔓 Logout", key="logout_admin"):
-        st.session_state.clear()
-        st.session_state["page"] = "login"

@@ -169,12 +169,12 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         except FileNotFoundError:
             st.info("Quote log file not found.")
 
-    st.divider()
-    st.markdown("### 🔍 Compare Configurations")
-    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
-    if compare_configs:
-        compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
-        st.dataframe(compare_df.set_index("configuration_name"))
+        st.divider()
+        st.markdown("### 🔍 Compare Configurations")
+        compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
+        if compare_configs:
+            compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
+            st.dataframe(compare_df.set_index("configuration_name"))
 
 # ------------------ QUOTE SUMMARY PAGE ------------------
 if st.session_state.get("page") == "quote_summary" and st.session_state.get("logged_in"):
@@ -232,7 +232,6 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
             if st.button("🔓 Logout", key="logout_quote"):
                 st.session_state.clear()
                 st.experimental_rerun()
-
 
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":

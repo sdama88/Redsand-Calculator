@@ -89,44 +89,83 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
 
     doc.build(story)
 
-# ------------------ CONFIG PREVIEW PAGE ------------------
-if st.session_state.get("page") == "config_preview" and st.session_state.get("logged_in"):
-    st.subheader("🔧 Configuration Preview")
-    use_case = st.session_state["use_case"]
-    users = st.session_state["num_users"]
-    mode = st.session_state.get("quote_mode", "Auto")
+# ------------------ WELCOME + CONFIG SELECTOR WITH PREVIEW ------------------
+if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in"):
+    st.subheader(f"🔐 Welcome, {st.session_state['partner_name']}")
+    col_left, col_right = st.columns([2, 3])
 
-    if use_case == "Voice Bot":
-        config_row = configs[configs["configuration_name"] == "RedBox Voice"].iloc[0]
-        selected_config = config_row["configuration_name"]
-        final_gpu = config_row["gpu_type"]
-        users_per_box = workloads[workloads["workload_name"] == use_case].iloc[0]["users_per_gpu"]
-        num_boxes = max(1, int(users / users_per_box))
-    elif mode == "Auto":
-        workload_row = workloads[workloads["workload_name"] == use_case].iloc[0]
-        base_gpu = workload_row["gpu_type"]
-        users_per_box = workload_row["users_per_gpu"]
-        num_boxes = max(1, int(users / users_per_box))
-        upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (users >= upgrade_rules["user_threshold"])]
-        final_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
-        matching_configs = configs[configs["gpu_type"] == final_gpu]
-        selected_config = matching_configs.iloc[0]["configuration_name"]
-    else:
-        selected_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique(), key="manual_select")
-        num_boxes = st.number_input("Quantity", min_value=1, step=1, key="manual_qty")
-        final_gpu = configs[configs["configuration_name"] == selected_config].iloc[0]["gpu_type"]
+    with col_left:
+        st.markdown("### 🚀 Start a New Quote")
+        selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
+        num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
+        selected_mode = st.radio("Choose Mode", ["Auto (Recommended)", "Manual Selection"], key="quote_mode_selection")
 
-    st.session_state["preview_config"] = selected_config
-    st.session_state["preview_gpu"] = final_gpu
-    st.session_state["preview_boxes"] = num_boxes
+        # --- Config preview logic ---
+        if selected_use_case == "Voice Bot":
+            config_row = configs[configs["configuration_name"] == "RedBox Voice"].iloc[0]
+            preview_config = config_row["configuration_name"]
+            preview_gpu = config_row["gpu_type"]
+            users_per_box = workloads[workloads["workload_name"] == selected_use_case].iloc[0]["users_per_gpu"]
+            preview_boxes = max(1, int(num_users / users_per_box))
+        elif "Auto" in selected_mode:
+            workload_row = workloads[workloads["workload_name"] == selected_use_case].iloc[0]
+            base_gpu = workload_row["gpu_type"]
+            users_per_box = workload_row["users_per_gpu"]
+            preview_boxes = max(1, int(num_users / users_per_box))
+            upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (num_users >= upgrade_rules["user_threshold"])]
+            preview_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
+            matching_configs = configs[configs["gpu_type"] == preview_gpu]
+            preview_config = matching_configs.iloc[0]["configuration_name"]
+        else:
+            preview_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique(), key="manual_select")
+            preview_boxes = st.number_input("Quantity", min_value=1, step=1, key="manual_qty")
+            preview_gpu = configs[configs["configuration_name"] == preview_config].iloc[0]["gpu_type"]
 
-    st.write(f"**Use Case:** {use_case}")
-    st.write(f"**GPU Type:** {final_gpu}")
-    st.write(f"**Configuration:** {selected_config}")
-    st.write(f"**Boxes Needed:** {num_boxes}")
+        # Display config preview in realtime
+        st.markdown("#### 🔧 Configuration Preview")
+        st.write(f"**Use Case:** {selected_use_case}")
+        st.write(f"**GPU Type:** {preview_gpu}")
+        st.write(f"**Configuration:** {preview_config}")
+        st.write(f"**Boxes Needed:** {preview_boxes}")
 
-    if st.button("Generate Quote", key="gen_quote_btn"):
-        st.session_state["page"] = "quote_summary"
+        # Save preview to session
+        st.session_state["preview_config"] = preview_config
+        st.session_state["preview_gpu"] = preview_gpu
+        st.session_state["preview_boxes"] = preview_boxes
+        st.session_state["use_case"] = selected_use_case
+        st.session_state["num_users"] = num_users
+        st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
+
+        st.divider()
+        nav1, nav2, nav3 = st.columns([1,1,1])
+        with nav1:
+            if st.button("🏠 Home", key="home_welcome"):
+                st.session_state["page"] = "welcome"
+        with nav2:
+            if st.button("🔙 Back", key="back_welcome"):
+                st.session_state["page"] = "welcome"
+        with nav3:
+            if st.button("➡️ Generate Quote", key="gen_quote"):
+                st.session_state["page"] = "quote_summary"
+
+    with col_right:
+        st.markdown("### 📚 My Quote History")
+        try:
+            full_log = pd.read_csv("config_log.csv")
+            partner_log = full_log[full_log['partner_code'] == st.session_state['partner_code']]
+            if not partner_log.empty:
+                st.dataframe(partner_log.sort_values("timestamp", ascending=False))
+            else:
+                st.info("No previous quotes found.")
+        except FileNotFoundError:
+            st.info("Quote log file not found.")
+
+    st.divider()
+    st.markdown("### 🔍 Compare Configurations")
+    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
+    if compare_configs:
+        compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
+        st.dataframe(compare_df.set_index("configuration_name"))
 
 # ------------------ QUOTE SUMMARY PAGE ------------------
 if st.session_state.get("page") == "quote_summary" and st.session_state.get("logged_in"):
@@ -172,56 +211,11 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
                 st.session_state["page"] = "welcome"
         with nav2:
             if st.button("🔙 Back", key="back_quote"):
-                st.session_state["page"] = "config_preview"
+                st.session_state["page"] = "welcome"
         with nav3:
             if st.button("🔓 Logout", key="logout_quote"):
                 st.session_state.clear()
                 st.experimental_rerun()
-
-# ------------------ WELCOME DASHBOARD ------------------
-if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in"):
-    st.subheader(f"🔐 Welcome, {st.session_state['partner_name']}")
-    col_left, col_right = st.columns([2, 3])
-
-    with col_left:
-        st.markdown("### 🚀 Start a New Quote")
-        selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
-        num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
-        selected_mode = st.radio("Choose Mode", ["Auto (Recommended)", "Manual Selection"], key="quote_mode_selection")
-        if st.button("Next", key="next_welcome"):
-            st.session_state["use_case"] = selected_use_case
-            st.session_state["num_users"] = num_users
-            st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
-            st.session_state["page"] = "config_preview"
-
-    with col_right:
-        st.markdown("### 📚 My Quote History")
-        try:
-            full_log = pd.read_csv("config_log.csv")
-            partner_log = full_log[full_log['partner_code'] == st.session_state['partner_code']]
-            if not partner_log.empty:
-                st.dataframe(partner_log.sort_values("timestamp", ascending=False))
-            else:
-                st.info("No previous quotes found.")
-        except FileNotFoundError:
-            st.info("Quote log file not found.")
-
-    st.divider()
-    st.markdown("### 🔍 Compare Configurations")
-    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
-    if compare_configs:
-        compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
-        st.dataframe(compare_df.set_index("configuration_name"))
-
-    st.divider()
-    home_col1, home_col2 = st.columns([1, 1])
-    with home_col1:
-        if st.button("🏠 Home", key="home_welcome"):
-            st.session_state["page"] = "welcome"
-    with home_col2:
-        if st.button("🔓 Logout", key="logout_welcome"):
-            st.session_state.clear()
-            st.experimental_rerun()
 
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":

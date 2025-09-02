@@ -44,9 +44,10 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
     normal_style.fontSize = 11
     story = []
 
+    # Header with logo in top-right
     logo_path = "Redsand Logo_White.png"
     if os.path.exists(logo_path):
-        logo = Image(logo_path, width=1.6*inch, height=0.5*inch)
+        logo = Image(logo_path, width=1.5*inch, height=0.5*inch)
     else:
         logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
 
@@ -58,25 +59,33 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
     story.append(Spacer(1, 8))
     story.append(Paragraph(datetime.now().strftime("%A, %d %B %Y — %H:%M:%S"), normal_style))
     story.append(Paragraph(f"Quote ID: {quote_id}", normal_style))
-    story.append(Spacer(1, 18))
     story.append(Paragraph(f"Partner: {partner_name}", normal_style))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 18))
 
-    table_data = [["Field", "Value"]] + summary_data
-    table = Table(table_data, hAlign='LEFT', colWidths=[150, 300])
-    style = TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#d71920")),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 11),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8)
-    ])
-    for i in range(1, len(table_data)):
-        bg = colors.whitesmoke if i % 2 == 0 else colors.lightgrey
-        style.add('BACKGROUND', (0, i), (-1, i), bg)
-    table.setStyle(style)
-    story.append(table)
+    # Split summary_data into config and pricing sections
+    config_rows = [row for row in summary_data if row[0] in ["Use Case", "GPU Type", "Configuration", "Boxes Needed"]]
+    pricing_rows = [row for row in summary_data if "Cost" in row[0] or "Total" in row[0]]
+
+    # Config section
+    story.append(Paragraph("Configuration Details", ParagraphStyle('Heading', fontSize=12, textColor=colors.black, spaceAfter=6)))
+    config_table = Table([["Field", "Value"]] + config_rows, hAlign='LEFT', colWidths=[150, 300])
+    config_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
+    ]))
+    story.append(config_table)
+    story.append(Spacer(1, 18))
+
+    # Pricing section
+    story.append(Paragraph("Pricing Details", ParagraphStyle('Heading', fontSize=12, textColor=colors.black, spaceAfter=6)))
+    pricing_table = Table([["Field", "Value"]] + pricing_rows, hAlign='LEFT', colWidths=[150, 300])
+    pricing_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
+    ]))
+    story.append(pricing_table)
     story.append(Spacer(1, 24))
 
     disclaimer = (
@@ -185,22 +194,29 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
         yearly = monthly * 12
         total_3yr = yearly * 3
 
-        summary_data = [
-            ["Partner", st.session_state['partner_name']],
-            ["Quote ID", quote_id],
+        config_details = [
             ["Use Case", use_case],
             ["GPU Type", final_gpu],
             ["Configuration", selected_config],
-            ["Boxes Needed", num_boxes],
+            ["Boxes Needed", num_boxes]
+        ]
+
+        pricing_details = [
             ["Monthly Cost", f"${monthly:,.0f}"],
             ["Yearly Cost", f"${yearly:,.0f}"],
             ["3-Year Total", f"${total_3yr:,.0f}"]
         ]
 
-        for row in summary_data:
-            st.write(f"**{row[0]}:** {row[1]}")
+        st.markdown("### Configuration Details")
+        st.table(config_details)
+
+        st.markdown("### Pricing Details")
+        st.table(pricing_details)
+
+        st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at sales@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
         filename = f"Redsand_Config_{st.session_state['partner_code']}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+        summary_data = [["Use Case", use_case],["GPU Type", final_gpu],["Configuration", selected_config],["Boxes Needed", num_boxes],["Monthly Cost", f"${monthly:,.0f}"],["Yearly Cost", f"${yearly:,.0f}"],["3-Year Total", f"${total_3yr:,.0f}"]]
         generate_pdf(filename, summary_data, st.session_state['partner_name'], quote_id)
         with open(filename, "rb") as f:
             st.download_button("📄 Download PDF", f, file_name=filename)
@@ -216,6 +232,7 @@ if st.session_state.get("page") == "quote_summary" and st.session_state.get("log
             if st.button("🔓 Logout", key="logout_quote"):
                 st.session_state.clear()
                 st.experimental_rerun()
+
 
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":

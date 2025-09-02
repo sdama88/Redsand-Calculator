@@ -39,16 +39,20 @@ if st.button("Login"):
         st.session_state['admin'] = True
         st.session_state['logged_in'] = True
     else:
-        match = credentials[(credentials['partner_code'] == login_input) & (credentials['password'] == password_input)]
+        match = credentials[credentials['partner_code'] == login_input]
         if not match.empty:
-            st.session_state['partner_name'] = match.iloc[0]['partner_name']
-            st.session_state['partner_code'] = match.iloc[0]['partner_code']
-            st.session_state['admin'] = False
-            st.session_state['logged_in'] = True
+            stored_password = match.iloc[0]['password']
+            if password_input == stored_password:
+                st.session_state['partner_name'] = match.iloc[0]['partner_name']
+                st.session_state['partner_code'] = match.iloc[0]['partner_code']
+                st.session_state['admin'] = False
+                st.session_state['logged_in'] = True
+            else:
+                st.error("Incorrect password for partner.")
         else:
-            st.error("Invalid partner code or password.")
+            st.error("Invalid partner code.")
 
-# rest of the app logic remains the same
+
 
 def log_config(partner_code, partner_name, mode, use_case, config, gpu_type, qty, monthly, yearly, total_3yr, pdf_file):
     now = datetime.now()

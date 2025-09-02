@@ -144,7 +144,7 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
 
     st.divider()
     st.markdown("### 🔍 Compare Configurations")
-    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique())
+    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
     if compare_configs:
         compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
         st.dataframe(compare_df.set_index("configuration_name"))
@@ -177,12 +177,7 @@ if st.session_state.get("logged_in") and not st.session_state.get("admin"):
     except FileNotFoundError:
         st.info("Quote log file not found.")
 
-# ------------------ COMPARISON TOOL ------------------
-    st.subheader("🔍 Compare Configurations")
-    compare_configs = st.multiselect("Choose up to 3 configurations to compare", configs["configuration_name"].unique())
-    if compare_configs:
-        compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
-        st.dataframe(compare_df.set_index("configuration_name"))
+
 # ------------------ LOGIN PAGE ------------------
 if st.session_state["page"] == "login":
     st.title("🔐 Redsand Partner Portal")

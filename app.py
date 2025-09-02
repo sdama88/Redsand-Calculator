@@ -191,7 +191,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         with nav4:
             if st.button("🔓 Logout", key="logout_welcome"):
                 st.session_state.clear()
-                st.experimental_rerun()
+                 st.session_state["page"] = "login"
 
     with col_right:
         st.markdown("### 🔍 Compare Configurations")
@@ -294,7 +294,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         with nav3:
             if st.button("🔓 Logout", key="logout_quote"):
                 st.session_state.clear()
-                st.experimental_rerun()
+                st.session_state["page"] = "login"
 
 # ------------------ ADMIN PANEL ------------------
 elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and st.session_state.get("admin"):

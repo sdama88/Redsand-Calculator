@@ -126,11 +126,7 @@ if st.session_state.get("page") == "welcome" and st.session_state.get("logged_in
         selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
         num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
         selected_mode = st.radio("Choose Mode", ["Auto (Recommended)", "Manual Selection"], key="quote_mode_selection")
-        if st.button("Generate Quote"):
-    st.session_state["use_case"] = selected_use_case
-    st.session_state["num_users"] = num_users
-    st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
-    st.session_state["page"] = "configure"
+       if st.button("Generate Quote"):
     st.session_state["use_case"] = selected_use_case
     st.session_state["num_users"] = num_users
     st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"

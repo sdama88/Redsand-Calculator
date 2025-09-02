@@ -38,7 +38,12 @@ if "quote_id" not in st.session_state:
 def safe_logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
+    # Reinitialize required keys to avoid KeyError on rerun
     st.session_state["page"] = "login"
+    st.session_state["logged_in"] = False
+    st.session_state["admin"] = False
+    st.session_state["pdf_ready"] = False
+    st.session_state["quote_id"] = str(uuid.uuid4())[:8]
 
 # ------------------ PDF GENERATOR ------------------
 def generate_pdf(filename, summary_data, partner_name, quote_id):

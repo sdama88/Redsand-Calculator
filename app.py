@@ -165,17 +165,7 @@ if st.session_state.get("pdf_ready"):
     st.markdown("If you have special requirements or need custom configurations, please contact **partners@redsand.ai** with your Quote ID and configuration PDF.")
     st.markdown("You can download the summary above and email it directly to our team for further assistance.")
     st.markdown(f"📄 **Your Quote ID:** `{st.session_state['quote_id']}`")
-if st.session_state.get("logged_in") and not st.session_state.get("admin"):
-    st.subheader("📚 My Quote History")
-    try:
-        full_log = pd.read_csv("config_log.csv")
-        partner_log = full_log[full_log['partner_code'] == st.session_state['partner_code']]
-        if not partner_log.empty:
-            st.dataframe(partner_log.sort_values("timestamp", ascending=False))
-        else:
-            st.info("No previous quotes found.")
-    except FileNotFoundError:
-        st.info("Quote log file not found.")
+
 
 
 # ------------------ LOGIN PAGE ------------------

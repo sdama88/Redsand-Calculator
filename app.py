@@ -34,6 +34,12 @@ if "pdf_ready" not in st.session_state:
 if "quote_id" not in st.session_state:
     st.session_state["quote_id"] = str(uuid.uuid4())[:8]
 
+# ------------------ SAFE LOGOUT FUNCTION ------------------
+def safe_logout():
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.session_state["page"] = "login"
+
 # ------------------ PDF GENERATOR ------------------
 def generate_pdf(filename, summary_data, partner_name, quote_id):
     try:
@@ -48,7 +54,7 @@ def generate_pdf(filename, summary_data, partner_name, quote_id):
         logo_path = "Redsand Logo_White.png"
         if os.path.exists(logo_path):
             logo = Image(logo_path)
-            logo._restrictSize(1.8*inch, 0.6*inch)  # keeps proportions within bounding box
+            logo._restrictSize(1.8*inch, 0.6*inch)
         else:
             logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
 
@@ -129,8 +135,10 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
     st.subheader(f"🔐 Welcome, {st.session_state['partner_name']}")
-    col_left, col_right = st.columns([2, 3])
 
+    # Logout button (safe)
+    if st.button("🔓 Logout", key="logout_welcome"):
+        safe_logout()
     with col_left:
         st.markdown("### 🚀 Start a New Quote")
 
@@ -218,6 +226,10 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         st.image("Redsand Logo_White.png", width=200)
     st.subheader("🧾 Quote Summary")
 
+    # Logout button (safe)
+    if st.button("🔓 Logout", key="logout_quote"):
+        safe_logout()
+
     use_case = st.session_state.get("use_case", "N/A")
     selected_config = st.session_state.get("preview_config", "N/A")
     final_gpu = st.session_state.get("preview_gpu", "N/A")
@@ -301,6 +313,10 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
     st.subheader("🛠️ Admin Panel — All Quotes")
+
+    # Logout button (safe)
+    if st.button("🔓 Logout", key="logout_admin"):
+        safe_logout()
     try:
         full_log = pd.read_csv("config_log.csv")
         st.dataframe(full_log.sort_values("timestamp", ascending=False))

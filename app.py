@@ -9,6 +9,25 @@ from reportlab.lib.units import inch
 import os
 import uuid
 
+import gspread
+from google.oauth2.service_account import Credentials
+
+def get_gsheet_client():
+    scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+    client = gspread.authorize(creds)
+    return client
+
+def log_to_sheets(log_row):
+    try:
+        client = get_gsheet_client()
+        sheet = client.open("Redsand Quotes Log").sheet1  # 👈 make sure the sheet exists
+        sheet.append_row(list(log_row.values()))
+    except Exception as e:
+        st.error(f"Google Sheets logging failed: {e}")
+
+
+
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
 ADMIN_EMAIL = "sdama@redsand.ai"
 
@@ -326,6 +345,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                         log_df = pd.DataFrame([log_row])
                     log_df.to_csv("config_log.csv", index=False)
                     st.success("✅ Quote saved to history")
+                    log_to_sheets(log_row)
 
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:

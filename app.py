@@ -69,7 +69,7 @@ if st.session_state["page"] == "login":
             if not match.empty:
                 st.session_state['partner_name'] = match.iloc[0]['partner_name']
                 st.session_state['partner_code'] = match.iloc[0]['partner_code']
-                st.session_state['partner_margin'] = match.iloc[0].get('margin_percent', 0)  # default 0 if missing
+                st.session_state['partner_margin'] = match.iloc[0]['margin_percent'] if 'margin_percent' in match.columns else 0
                 st.session_state['admin'] = False
                 st.session_state['logged_in'] = True
                 go_to("welcome")

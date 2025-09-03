@@ -19,6 +19,9 @@ def load_data():
     pricing = pd.read_csv("pricing.csv")
     configs = pd.read_csv("redbox_configs.csv")
     credentials = pd.read_csv("partner_credentials.csv")
+    # Ensure margin column is numeric
+    if "margin_percent" in credentials.columns:
+        credentials["margin_percent"] = pd.to_numeric(credentials["margin_percent"], errors="coerce").fillna(0)
     return workloads, upgrade_rules, pricing, configs, credentials
 
 workloads, upgrade_rules, pricing, configs, credentials = load_data()
@@ -69,7 +72,7 @@ if st.session_state["page"] == "login":
             if not match.empty:
                 st.session_state['partner_name'] = match.iloc[0]['partner_name']
                 st.session_state['partner_code'] = match.iloc[0]['partner_code']
-                st.session_state['partner_margin'] = match.iloc[0]['margin_percent'] if 'margin_percent' in match.columns else 0
+                st.session_state['partner_margin'] = float(match.iloc[0]['margin_percent']) if 'margin_percent' in match.columns else 0
                 st.session_state['admin'] = False
                 st.session_state['logged_in'] = True
                 go_to("welcome")
@@ -198,7 +201,8 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         # Base and final pricing
         base_monthly = price_per_unit * num_units
         margin_multiplier = 1 + (partner_margin / 100)
-        final_monthly = base_monthly * margin_multiplier
+        partner_margin_value = base_monthly * (partner_margin / 100)
+        final_monthly = base_monthly + partner_margin_value
         final_yearly = final_monthly * 12
         final_3yr = final_yearly * 3
 
@@ -209,7 +213,11 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                 f"${base_monthly*12:,.0f}",
                 f"${base_monthly*36:,.0f}"
             ],
-            f"Partner Margin ({partner_margin}%) — {partner_name}": ["", "", ""],
+            f"Partner Margin ({partner_margin}%) – {partner_name}": [
+                f"${partner_margin_value:,.0f}",
+                f"${partner_margin_value*12:,.0f}",
+                f"${partner_margin_value*36:,.0f}"
+            ],
             "Final Customer Price": [
                 f"${final_monthly:,.0f}",
                 f"${final_yearly:,.0f}",
@@ -256,10 +264,10 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
             # Pricing table with 3 columns
             pdf_pricing = [
-                ["Period", "Base Redsand Price", f"Partner Margin ({partner_name})", "Final Customer Price"],
-                ["Monthly", f"${base_monthly:,.0f}", f"{partner_margin}%", f"${final_monthly:,.0f}"],
-                ["Yearly", f"${base_monthly*12:,.0f}", f"{partner_margin}%", f"${final_yearly:,.0f}"],
-                ["3-Year Total", f"${base_monthly*36:,.0f}", f"{partner_margin}%", f"${final_3yr:,.0f}"]
+                ["Period", "Base Redsand Price", f"Partner Margin ({partner_margin}%) – {partner_name}", "Final Customer Price"],
+                ["Monthly", f"${base_monthly:,.0f}", f"${partner_margin_value:,.0f}", f"${final_monthly:,.0f}"],
+                ["Yearly", f"${base_monthly*12:,.0f}", f"${partner_margin_value*12:,.0f}", f"${final_yearly:,.0f}"],
+                ["3-Year Total", f"${base_monthly*36:,.0f}", f"${partner_margin_value*36:,.0f}", f"${final_3yr:,.0f}"]
             ]
             pricing_table_pdf = Table(pdf_pricing, hAlign='LEFT', colWidths=[100,120,150,150])
             pricing_table_pdf.setStyle(TableStyle([
@@ -316,65 +324,3 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         with nav3:
             if st.button("🔓 Logout", key="logout_quote2"):
                 safe_logout()
-
-# ---------------- ADMIN PANEL ----------------
-elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and st.session_state.get("admin"):
-    if os.path.exists("Redsand Logo_White.png"):
-        st.image("Redsand Logo_White.png", width=200)
-    st.subheader("🛠️ Admin Panel — All Quotes")
-
-    if st.button("🔓 Logout", key="logout_admin"):
-        safe_logout()
-
-    try:
-        full_log = pd.read_csv("config_log.csv")
-        full_log["timestamp"] = pd.to_datetime(full_log["timestamp"], errors="coerce")
-
-        total_quotes = len(full_log)
-        total_partners = full_log["partner_name"].nunique()
-        latest_quote_date = full_log["timestamp"].max().strftime("%d %b %Y %H:%M") if not full_log.empty else "N/A"
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("📄 Total Quotes", total_quotes)
-        col2.metric("👥 Total Partners", total_partners)
-        col3.metric("🕒 Latest Quote", latest_quote_date)
-
-        partner_options = ["All"] + sorted(full_log["partner_name"].dropna().unique().tolist())
-        selected_partner = st.selectbox("Filter by Partner", partner_options, key="admin_partner_filter")
-
-        min_date = full_log["timestamp"].min().date() if not full_log.empty else datetime.today().date()
-        max_date = full_log["timestamp"].max().date() if not full_log.empty else datetime.today().date()
-        start_date, end_date = st.date_input(
-            "Filter by Date Range",
-            [min_date, max_date],
-            min_value=min_date,
-            max_value=max_date,
-            key="admin_date_filter"
-        )
-
-        search_quote_id = st.text_input("Search by Quote ID", key="admin_quote_search")
-
-        filtered_log = full_log
-        if selected_partner != "All":
-            filtered_log = filtered_log[filtered_log["partner_name"] == selected_partner]
-
-        if len([start_date, end_date]) == 2:
-            filtered_log = filtered_log[
-                (filtered_log["timestamp"].dt.date >= start_date) &
-                (filtered_log["timestamp"].dt.date <= end_date)
-            ]
-
-        if search_quote_id.strip():
-            filtered_log = filtered_log[filtered_log["quote_id"].astype(str).str.contains(search_quote_id.strip(), case=False, na=False)]
-
-        st.dataframe(filtered_log.sort_values("timestamp", ascending=False))
-        st.download_button(
-            "📥 Download Filtered Log",
-            filtered_log.to_csv(index=False),
-            file_name="config_log.csv"
-        )
-    except FileNotFoundError:
-        st.info("No logs found yet.")
-
-    nav1, nav2 = st.columns([1, 1])
-   

@@ -133,6 +133,7 @@ if st.session_state["page"] == "login":
             if not match.empty:
                 st.session_state['partner_name'] = match.iloc[0]['partner_name']
                 st.session_state['partner_code'] = match.iloc[0]['partner_code']
+                st.session_state['partner_margin'] = match.iloc[0].get('margin_percent', 0)  # default 0 if missing
                 st.session_state['admin'] = False
                 st.session_state['logged_in'] = True
                 go_to("welcome")
@@ -254,7 +255,9 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         st.error(f"No pricing found for {selected_config}.")
     else:
         price_per_unit = price_row["monthly_price_usd"].values[0]
-        monthly = price_per_unit * num_units
+        margin_multiplier = 1 + (st.session_state.get("partner_margin", 0) / 100)
+
+        monthly = (price_per_unit * num_units) * margin_multiplier
         yearly = monthly * 12
         total_3yr = yearly * 3
 

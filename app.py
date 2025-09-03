@@ -425,18 +425,18 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
         # Only log once user downloads the PDF
            if os.path.exists(filename):
-            with open(filename, "rb") as f:
-                download_clicked = st.download_button(
-                    "📄 Download PDF", f, file_name=filename, key="download_pdf_button"
-                )
-                if download_clicked and not st.session_state.get("quote_logged", False):
-                    try:
-                        log_to_sheets(log_row)  # Log only on first download
-                        st.session_state["quote_logged"] = True
-                        st.success("✅ Quote saved to Redsand database")
-                    except Exception as e:
-                        st.error(f"⚠️ Failed to save quote: {e}")
-        
+                with open(filename, "rb") as f:
+                    download_clicked = st.download_button(
+                        "📄 Download PDF", f, file_name=filename, key="download_pdf_button"
+                    )
+                    if download_clicked and not st.session_state.get("quote_logged", False):
+                        try:
+                            log_to_sheets(log_row)  # Log only on first download
+                            st.session_state["quote_logged"] = True
+                            st.success("✅ Quote saved to Redsand database")
+                        except Exception as e:
+                            st.error(f"⚠️ Failed to save quote: {e}")
+            
 nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_quote"):

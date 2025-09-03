@@ -13,10 +13,22 @@ from google.oauth2.service_account import Credentials
 import time
 
 def get_gsheet_client():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
-    client = gspread.authorize(creds)
-    return client
+    try:
+        if "gcp_service_account" not in st.secrets:
+            raise ValueError("gcp_service_account not found in st.secrets")
+        secrets = st.secrets["gcp_service_account"]
+        if "private_key" not in secrets:
+            raise ValueError("private_key field missing in service account info")
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(secrets, scopes=scope)
+        client = gspread.authorize(creds)
+        st.write("Debug: Successfully created Google Sheets client")
+        return client
+    except Exception as e:
+        st.error(f"Failed to create Google Sheets client: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+        raise
 
 def log_to_sheets(log_row):
     try:
@@ -29,6 +41,7 @@ def log_to_sheets(log_row):
                 sheet.append_row(row_to_append)
                 st.write("Debug: Successfully logged to Google Sheets")
                 st.info("📤 Quote logged to Google Sheets")
+                st.rerun()  # Force refresh to update history
                 return
             except gspread.exceptions.APIError as e:
                 if attempt < 2:
@@ -38,20 +51,28 @@ def log_to_sheets(log_row):
                     st.error(f"Google Sheets logging failed after retries: {e}")
     except Exception as e:
         st.error(f"Google Sheets logging failed: {e}")
+        import traceback
+        st.code(traceback.format_exc())
 
 def fetch_gsheet_log():
     try:
         client = get_gsheet_client()
         sheet = client.open("RedsandQuotes").worksheet("Sheet1")
+        # Fetch raw data for debugging
+        raw_data = sheet.get_all_values()
+        st.write(f"Debug: Raw Google Sheet data (first 5 rows): {raw_data[:5]}")
+        # Fetch records
         data = sheet.get_all_records()
         if not data:
-            st.write("Debug: Google Sheets is empty")
+            st.write("Debug: Google Sheets is empty (no data rows)")
             return pd.DataFrame()
         df = pd.DataFrame(data)
         st.write(f"Debug: Fetched {len(df)} rows from Google Sheets")
         return df
     except Exception as e:
         st.error(f"Failed to fetch Google Sheets log: {e}")
+        import traceback
+        st.code(traceback.format_exc())
         return pd.DataFrame()
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
@@ -105,6 +126,19 @@ if st.session_state["page"] == "login":
     st.title("🔐 Redsand Partner Portal")
     login_input = st.text_input("Partner Code or Admin Email")
     password_input = st.text_input("Password", type="password")
+
+    # Debug secrets
+    if st.button("Debug: Inspect Secrets"):
+        if "gcp_service_account" in st.secrets:
+            secrets = st.secrets["gcp_service_account"]
+            st.write("Debug: Service account secrets keys:", list(secrets.keys()))
+            if "private_key" in secrets:
+                st.write(f"Debug: private_key found, length: {len(secrets['private_key'])} characters")
+                st.write(f"Debug: private_key preview (first 50 chars): {secrets['private_key'][:50]}...")
+            else:
+                st.error("Debug: private_key field missing in secrets!")
+        else:
+            st.error("Debug: gcp_service_account not found in secrets!")
 
     if st.button("Login", key="login_btn"):
         if login_input == ADMIN_EMAIL:
@@ -207,6 +241,8 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.markdown("### 📚 My Quote History")
         partner_code = st.session_state.get('partner_code')
         st.write(f"Debug: Partner code = {partner_code}")
+        if st.button("Refresh Quote History"):
+            st.rerun()
         full_log = fetch_gsheet_log()
         if not full_log.empty and partner_code:
             partner_log = full_log[full_log['partner_code'] == partner_code]
@@ -217,30 +253,20 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         else:
             st.info("No quote history available.")
 
-        # Test Google Sheets logging
-        if st.button("Test Google Sheets Logging"):
-            test_log = {
-                "timestamp": datetime.now().isoformat(),
-                "partner_code": partner_code or "test",
-                "partner_name": st.session_state.get('partner_name', 'test'),
-                "quote_id": "test-quote",
-                "use_case": "test",
-                "configuration": "test",
-                "gpu_type": "test",
-                "units": 1,
-                "price_per_unit": 1000,
-                "redsand_monthly": 1000,
-                "redsand_yearly": 12000,
-                "redsand_3yr": 36000,
-                "margin_monthly": 100,
-                "margin_yearly": 1200,
-                "margin_3yr": 3600,
-                "customer_monthly": 1100,
-                "customer_yearly": 13200,
-                "customer_3yr": 39600,
-                "pdf_file": "test.pdf"
-            }
-            log_to_sheets(test_log)
+        # Test Google Sheets authentication
+        if st.button("Test Google Sheets Authentication"):
+            try:
+                client = get_gsheet_client()
+                sheet = client.open("RedsandQuotes").worksheet("Sheet1")
+                headers = sheet.row_values(1) or ["test_column"]
+                sheet.append_row(["test", "connection", "successful", str(datetime.now().isoformat())])
+                st.success("✅ Test log written to Google Sheets!")
+                st.write(f"Sheet headers: {headers}")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Test failed: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
 # ---------------- QUOTE SUMMARY PAGE ----------------
 elif st.session_state["page"] == "quote_summary" and st.session_state.get("logged_in"):
@@ -413,6 +439,9 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
 
     if st.button("🔓 Logout", key="logout_admin"):
         safe_logout()
+
+    if st.button("Refresh Admin Log"):
+        st.rerun()
 
     full_log = fetch_gsheet_log()
     if not full_log.empty:

@@ -424,7 +424,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             st.error(f"PDF generation failed: {e}")
 
         # Only log once user downloads the PDF
-       if os.path.exists(filename):
+           if os.path.exists(filename):
             with open(filename, "rb") as f:
                 download_clicked = st.download_button(
                     "📄 Download PDF", f, file_name=filename, key="download_pdf_button"

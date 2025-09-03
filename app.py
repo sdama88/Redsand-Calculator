@@ -21,75 +21,51 @@ def get_gsheet_client():
             raise ValueError("private_key field missing in service account info")
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(secrets, scopes=scope)
-        client = gspread.authorize(creds)
-        st.write("Debug: Successfully created Google Sheets client")
-        return client
+        return gspread.authorize(creds)
     except Exception as e:
         st.error(f"Failed to create Google Sheets client: {e}")
-        import traceback
-        st.code(traceback.format_exc())
         raise
 
 def log_to_sheets(log_row):
     try:
         client = get_gsheet_client()
         sheet = client.open("RedsandQuotes").worksheet("Sheet1")
-        # Ensure headers exist
         headers = sheet.row_values(1)
         expected_headers = list(log_row.keys())
         if not headers:
-            st.write("Debug: Sheet is empty, setting headers")
             sheet.append_row(expected_headers)
             headers = expected_headers
-        elif headers != expected_headers:
-            st.warning(f"Debug: Sheet headers {headers} do not match expected {expected_headers}")
-        # Append the row
         row_to_append = [str(log_row.get(h, "")) for h in headers]
         for attempt in range(3):
             try:
                 sheet.append_row(row_to_append)
-                st.write("Debug: Successfully logged to Google Sheets")
-                st.write(f"Debug: Logged row: {row_to_append}")
                 st.info("📤 Quote logged to Google Sheets")
-                st.rerun()  # Force refresh to update history
+                st.rerun()
                 return
             except gspread.exceptions.APIError as e:
                 if attempt < 2:
-                    st.write(f"Debug: APIError on attempt {attempt + 1}, retrying...")
                     time.sleep(2 ** attempt)
                 else:
                     st.error(f"Google Sheets logging failed after retries: {e}")
     except Exception as e:
         st.error(f"Google Sheets logging failed: {e}")
-        import traceback
-        st.code(traceback.format_exc())
 
 def fetch_gsheet_log():
     try:
         client = get_gsheet_client()
         sheet = client.open("RedsandQuotes").worksheet("Sheet1")
-        # Fetch raw data for debugging
-        raw_data = sheet.get_all_values()
-        st.write(f"Debug: Raw Google Sheet data (first 5 rows): {raw_data[:5]}")
-        # Define expected headers
         expected_headers = [
             "timestamp", "partner_code", "partner_name", "quote_id", "use_case",
             "configuration", "gpu_type", "units", "price_per_unit", "redsand_monthly",
             "redsand_yearly", "redsand_3yr", "margin_monthly", "margin_yearly",
             "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
         ]
-        # Fetch records with expected headers
         data = sheet.get_all_records(expected_headers=expected_headers)
         if not data:
-            st.write("Debug: Google Sheets is empty (no data rows)")
             return pd.DataFrame(columns=expected_headers)
-        df = pd.DataFrame(data)
-        st.write(f"Debug: Fetched {len(df)} rows from Google Sheets")
-        return df
+        return pd.DataFrame(data)
     except Exception as e:
         st.error(f"Failed to fetch Google Sheets log: {e}")
-        import traceback
-        st.code(traceback.format_exc())
         return pd.DataFrame(columns=expected_headers)
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
@@ -144,19 +120,6 @@ if st.session_state["page"] == "login":
     login_input = st.text_input("Partner Code or Admin Email")
     password_input = st.text_input("Password", type="password")
 
-    # Debug secrets
-    if st.button("Debug: Inspect Secrets"):
-        if "gcp_service_account" in st.secrets:
-            secrets = st.secrets["gcp_service_account"]
-            st.write("Debug: Service account secrets keys:", list(secrets.keys()))
-            if "private_key" in secrets:
-                st.write(f"Debug: private_key found, length: {len(secrets['private_key'])} characters")
-                st.write(f"Debug: private_key preview (first 50 chars): {secrets['private_key'][:50]}...")
-            else:
-                st.error("Debug: private_key field missing in secrets!")
-        else:
-            st.error("Debug: gcp_service_account not found in secrets!")
-
     if st.button("Login", key="login_btn"):
         if login_input == ADMIN_EMAIL:
             st.session_state['admin'] = True
@@ -168,7 +131,6 @@ if st.session_state["page"] == "login":
                 st.session_state['partner_name'] = match.iloc[0]['partner_name']
                 st.session_state['partner_code'] = match.iloc[0]['partner_code']
                 st.session_state['partner_margin'] = float(match.iloc[0]['margin_percent']) if 'margin_percent' in match.columns else 0
-                st.write(f"Debug: Logged in, partner_code = {st.session_state['partner_code']}")
                 st.session_state['admin'] = False
                 st.session_state['logged_in'] = True
                 go_to("welcome")
@@ -257,13 +219,11 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.divider()
         st.markdown("### 📚 My Quote History")
         partner_code = st.session_state.get('partner_code')
-        st.write(f"Debug: Partner code = {partner_code}")
         if st.button("Refresh Quote History"):
             st.rerun()
         full_log = fetch_gsheet_log()
         if not full_log.empty and partner_code:
             partner_log = full_log[full_log['partner_code'].astype(str) == str(partner_code)]
-            st.write(f"Debug: Filtered partner_log rows: {len(partner_log)}")
             if not partner_log.empty:
                 st.dataframe(partner_log.sort_values("timestamp", ascending=False))
             else:
@@ -271,7 +231,6 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         else:
             st.info("No quote history available.")
 
-        # Test Google Sheets authentication
         if st.button("Test Google Sheets Authentication"):
             try:
                 client = get_gsheet_client()
@@ -306,12 +265,9 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
                 row_to_append = [str(test_log.get(h, "")) for h in headers]
                 sheet.append_row(row_to_append)
                 st.success("✅ Test log written to Google Sheets!")
-                st.write(f"Sheet headers: {headers}")
                 st.rerun()
             except Exception as e:
                 st.error(f"Test failed: {e}")
-                import traceback
-                st.code(traceback.format_exc())
 
 # ---------------- QUOTE SUMMARY PAGE ----------------
 elif st.session_state["page"] == "quote_summary" and st.session_state.get("logged_in"):
@@ -370,12 +326,32 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
         # ---------------- PDF TABLE ----------------
         filename = f"Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+        log_row = {
+            "timestamp": datetime.now().isoformat(),
+            "partner_code": st.session_state.get('partner_code', ''),
+            "partner_name": st.session_state.get('partner_name', ''),
+            "quote_id": quote_id,
+            "use_case": use_case,
+            "configuration": selected_config,
+            "gpu_type": final_gpu,
+            "units": str(num_units),
+            "price_per_unit": str(price_per_unit),
+            "redsand_monthly": str(base_monthly),
+            "redsand_yearly": str(base_monthly * 12),
+            "redsand_3yr": str(base_monthly * 36),
+            "margin_monthly": str(partner_margin_value),
+            "margin_yearly": str(partner_margin_value * 12),
+            "margin_3yr": str(partner_margin_value * 36),
+            "customer_monthly": str(final_monthly),
+            "customer_yearly": str(final_yearly),
+            "customer_3yr": str(final_3yr),
+            "pdf_file": filename
+        }
         try:
             doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
             styles = getSampleStyleSheet()
             story = []
 
-            # Logo and header
             logo_path = "Redsand Logo_White.png"
             if os.path.exists(logo_path):
                 logo = Image(logo_path)
@@ -388,7 +364,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(ht)
             story.append(Spacer(1, 12))
 
-            # Config table
             config_data = [
                 ["Use Case", use_case],
                 ["GPU Type", final_gpu],
@@ -400,7 +375,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(config_table)
             story.append(Spacer(1, 18))
 
-            # Pricing table with wrapped headers
             wrap_style = ParagraphStyle(name="wrap", fontSize=9, leading=11, alignment=1)
             pdf_pricing = [
                 [
@@ -430,40 +404,15 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
 
             doc.build(story)
-            st.write(f"Debug: PDF generated at {filename}")
+            log_to_sheets(log_row)  # Log before download to ensure logging even if download fails
+            if os.path.exists(filename):
+                with open(filename, "rb") as f:
+                    st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button")
+            else:
+                st.error(f"PDF file {filename} not found!")
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
-
-        # Download + log
-        if os.path.exists(filename):
-            with open(filename, "rb") as f:
-                if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
-                    st.write("Debug: Download button clicked")
-                    log_row = {
-                        "timestamp": datetime.now().isoformat(),
-                        "partner_code": st.session_state.get('partner_code', ''),
-                        "partner_name": st.session_state.get('partner_name', ''),
-                        "quote_id": quote_id,
-                        "use_case": use_case,
-                        "configuration": selected_config,
-                        "gpu_type": final_gpu,
-                        "units": str(num_units),  # Ensure string for consistency
-                        "price_per_unit": str(price_per_unit),
-                        "redsand_monthly": str(base_monthly),
-                        "redsand_yearly": str(base_monthly * 12),
-                        "redsand_3yr": str(base_monthly * 36),
-                        "margin_monthly": str(partner_margin_value),
-                        "margin_yearly": str(partner_margin_value * 12),
-                        "margin_3yr": str(partner_margin_value * 36),
-                        "customer_monthly": str(final_monthly),
-                        "customer_yearly": str(final_yearly),
-                        "customer_3yr": str(final_3yr),
-                        "pdf_file": filename
-                    }
-                    st.write("Debug: log_row =", log_row)
-                    log_to_sheets(log_row)
-        else:
-            st.error(f"PDF file {filename} not found!")
+            log_to_sheets(log_row)  # Log even if PDF generation fails
 
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
@@ -491,9 +440,6 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
     full_log = fetch_gsheet_log()
     if not full_log.empty:
         full_log["timestamp"] = pd.to_datetime(full_log["timestamp"], errors="coerce")
-        st.write(f"Debug: Loaded {len(full_log)} rows from Google Sheets")
-
-        # Metrics bar
         total_quotes = len(full_log)
         total_partners = full_log["partner_name"].nunique()
         latest_quote_date = full_log["timestamp"].max().strftime("%d %b %Y %H:%M") if not full_log.empty else "N/A"
@@ -503,11 +449,9 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         col2.metric("👥 Total Partners", total_partners)
         col3.metric("🕒 Latest Quote", latest_quote_date)
 
-        # Partner filter
         partner_options = ["All"] + sorted(full_log["partner_name"].dropna().unique().tolist())
         selected_partner = st.selectbox("Filter by Partner", partner_options, key="admin_partner_filter")
 
-        # Date range filter
         min_date = full_log["timestamp"].min().date() if not full_log.empty else datetime.today().date()
         max_date = full_log["timestamp"].max().date() if not full_log.empty else datetime.today().date()
         start_date, end_date = st.date_input(
@@ -518,23 +462,18 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             key="admin_date_filter"
         )
 
-        # Quote ID search
         search_quote_id = st.text_input("Search by Quote ID", key="admin_quote_search")
 
-        # Apply filters
         filtered_log = full_log
         if selected_partner != "All":
             filtered_log = filtered_log[filtered_log["partner_name"].astype(str) == str(selected_partner)]
-            st.write(f"Debug: After partner filter, rows: {len(filtered_log)}")
         if len([start_date, end_date]) == 2:
             filtered_log = filtered_log[
                 (filtered_log["timestamp"].dt.date >= start_date) &
                 (filtered_log["timestamp"].dt.date <= end_date)
             ]
-            st.write(f"Debug: After date filter, rows: {len(filtered_log)}")
         if search_quote_id.strip():
             filtered_log = filtered_log[filtered_log["quote_id"].astype(str).str.contains(search_quote_id.strip(), case=False, na=False)]
-            st.write(f"Debug: After quote ID filter, rows: {len(filtered_log)}")
 
         st.dataframe(filtered_log.sort_values("timestamp", ascending=False))
         st.download_button(
@@ -544,11 +483,6 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         )
     else:
         st.info("No logs found yet.")
-
-    # Test raw log display
-    if st.button("Show Raw Google Sheets Log"):
-        st.write("Debug: Raw Google Sheets log")
-        st.dataframe(full_log)
 
     nav1, nav2 = st.columns([1, 1])
     with nav1:

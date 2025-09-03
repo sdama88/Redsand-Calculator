@@ -362,7 +362,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             if st.button("🔓 Logout", key="logout_quote2"):
                 safe_logout()
 
-# ---------------- ADMIN PANEL ----------------
+# ------------------ ADMIN PANEL ------------------
 elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and st.session_state.get("admin"):
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
@@ -375,7 +375,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         full_log = pd.read_csv("config_log.csv")
         full_log["timestamp"] = pd.to_datetime(full_log["timestamp"], errors="coerce")
 
-        # 📊 Metrics bar
+        # 🔹 Metrics bar
         total_quotes = len(full_log)
         total_partners = full_log["partner_name"].nunique()
         latest_quote_date = full_log["timestamp"].max().strftime("%d %b %Y %H:%M") if not full_log.empty else "N/A"
@@ -415,36 +415,14 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             ]
 
         if search_quote_id.strip():
-            filtered_log = filtered_log[
-                filtered_log["quote_id"].astype(str).str.contains(search_quote_id.strip(), case=False, na=False)
-            ]
+            filtered_log = filtered_log[filtered_log["quote_id"].astype(str).str.contains(search_quote_id.strip(), case=False, na=False)]
 
-        # Show full detailed table with Redsand + Margin + Customer prices
-        st.markdown("### 📑 Quote Log (Detailed)")
-        desired_columns = [
-            "timestamp", "partner_name", "use_case", "configuration", "gpu_type", "units",
-            "redsand_monthly", "margin_monthly", "customer_monthly",
-            "redsand_yearly", "margin_yearly", "customer_yearly",
-            "redsand_3yr", "margin_3yr", "customer_3yr",
-            "quote_id", "pdf_file"
-        ]
-
-# Only keep columns that actually exist in the log file
-        available_columns = [col for col in desired_columns if col in filtered_log.columns]
-        
-        st.dataframe(
-            filtered_log.sort_values("timestamp", ascending=False)[available_columns],
-            height=800,  # Taller scrollable table
-            use_container_width=True
-        )
-
-        # Download filtered log
+        st.dataframe(filtered_log.sort_values("timestamp", ascending=False))
         st.download_button(
             "📥 Download Filtered Log",
             filtered_log.to_csv(index=False),
             file_name="config_log.csv"
         )
-
     except FileNotFoundError:
         st.info("No logs found yet.")
 

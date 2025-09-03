@@ -21,7 +21,7 @@ def get_gsheet_client():
 def log_to_sheets(log_row):
     try:
         client = get_gsheet_client()
-        sheet = client.open("Redsand Quotes Log").sheet1  # 👈 make sure the sheet exists
+        sheet = client.open("RedsandQuotes").sheet1  # 👈 make sure the sheet exists
         sheet.append_row(list(log_row.values()))
     except Exception as e:
         st.error(f"Google Sheets logging failed: {e}")
@@ -346,6 +346,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                     log_df.to_csv("config_log.csv", index=False)
                     st.success("✅ Quote saved to history")
                     log_to_sheets(log_row)
+                    st.info("Attempting to log to Google Sheets…")
 
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:

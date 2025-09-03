@@ -34,7 +34,16 @@ def log_to_sheets(log_row):
     try:
         client = get_gsheet_client()
         sheet = client.open("RedsandQuotes").worksheet("Sheet1")
-        headers = sheet.row_values(1) or list(log_row.keys())
+        # Ensure headers exist
+        headers = sheet.row_values(1)
+        expected_headers = list(log_row.keys())
+        if not headers:
+            st.write("Debug: Sheet is empty, setting headers")
+            sheet.append_row(expected_headers)
+            headers = expected_headers
+        elif headers != expected_headers:
+            st.warning(f"Debug: Sheet headers {headers} do not match expected {expected_headers}")
+        # Append the row
         row_to_append = [str(log_row.get(h, "")) for h in headers]
         for attempt in range(3):
             try:
@@ -61,11 +70,18 @@ def fetch_gsheet_log():
         # Fetch raw data for debugging
         raw_data = sheet.get_all_values()
         st.write(f"Debug: Raw Google Sheet data (first 5 rows): {raw_data[:5]}")
-        # Fetch records
-        data = sheet.get_all_records()
+        # Define expected headers
+        expected_headers = [
+            "timestamp", "partner_code", "partner_name", "quote_id", "use_case",
+            "configuration", "gpu_type", "units", "price_per_unit", "redsand_monthly",
+            "redsand_yearly", "redsand_3yr", "margin_monthly", "margin_yearly",
+            "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
+        ]
+        # Fetch records with expected headers
+        data = sheet.get_all_records(expected_headers=expected_headers)
         if not data:
             st.write("Debug: Google Sheets is empty (no data rows)")
-            return pd.DataFrame()
+            return pd.DataFrame(columns=expected_headers)
         df = pd.DataFrame(data)
         st.write(f"Debug: Fetched {len(df)} rows from Google Sheets")
         return df
@@ -73,7 +89,7 @@ def fetch_gsheet_log():
         st.error(f"Failed to fetch Google Sheets log: {e}")
         import traceback
         st.code(traceback.format_exc())
-        return pd.DataFrame()
+        return pd.DataFrame(columns=expected_headers)
 
 st.set_page_config(page_title="Redsand Partner Portal", layout="wide")
 ADMIN_EMAIL = "sdama@redsand.ai"
@@ -258,8 +274,19 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             try:
                 client = get_gsheet_client()
                 sheet = client.open("RedsandQuotes").worksheet("Sheet1")
-                headers = sheet.row_values(1) or ["test_column"]
-                sheet.append_row(["test", "connection", "successful", str(datetime.now().isoformat())])
+                headers = sheet.row_values(1) or [
+                    "timestamp", "partner_code", "partner_name", "quote_id", "use_case",
+                    "configuration", "gpu_type", "units", "price_per_unit", "redsand_monthly",
+                    "redsand_yearly", "redsand_3yr", "margin_monthly", "margin_yearly",
+                    "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
+                ]
+                test_log = {h: "test" for h in headers}
+                test_log["timestamp"] = datetime.now().isoformat()
+                test_log["partner_code"] = partner_code or "test"
+                test_log["partner_name"] = st.session_state.get('partner_name', 'test')
+                test_log["quote_id"] = "test-quote"
+                row_to_append = [str(test_log.get(h, "")) for h in headers]
+                sheet.append_row(row_to_append)
                 st.success("✅ Test log written to Google Sheets!")
                 st.write(f"Sheet headers: {headers}")
                 st.rerun()

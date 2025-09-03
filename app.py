@@ -292,7 +292,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         if os.path.exists(filename):
             with open(filename, "rb") as f:
                 if st.download_button("📄 Download PDF", f, file_name=filename):
-                   log_row = {
+                    log_row = {
                        "timestamp": datetime.now().isoformat(),
                        "partner_code": st.session_state.get('partner_code',''),
                        "partner_name": partner_name,
@@ -318,8 +318,8 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                        "customer_3yr": final_3yr,
                     
                        "pdf_file": filename
-                   }
-                   try:
+                    }
+                    try:
                         log_df = pd.read_csv("config_log.csv")
                         log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
                     except FileNotFoundError:

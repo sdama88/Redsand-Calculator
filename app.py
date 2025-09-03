@@ -23,11 +23,13 @@ def get_gsheet_client():
         creds = Credentials.from_service_account_info(secrets, scopes=scope)
         return gspread.authorize(creds)
     except Exception as e:
+        print(f"Debug: Failed to create Google Sheets client: {e}")
         st.error(f"Failed to create Google Sheets client: {e}")
         raise
 
 def log_to_sheets(log_row):
     try:
+        print("Debug: Starting log_to_sheets")
         client = get_gsheet_client()
         sheet = client.open("RedsandQuotes").worksheet("Sheet1")
         headers = sheet.row_values(1) or [
@@ -37,21 +39,41 @@ def log_to_sheets(log_row):
             "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
         ]
         if not headers:
+            print("Debug: Sheet is empty, setting headers")
             sheet.append_row(headers)
         row_to_append = [str(log_row.get(h, "")) for h in headers]
         for attempt in range(3):
             try:
+                print(f"Debug: Attempt {attempt + 1} to write row: {row_to_append}")
                 sheet.append_row(row_to_append)
+                print("Debug: Successfully logged to Google Sheets")
                 st.session_state.quote_logged = True
                 st.info("📤 Quote logged to Google Sheets")
                 return
             except gspread.exceptions.APIError as e:
+                print(f"Debug: APIError on attempt {attempt + 1}: {e}")
                 if attempt < 2:
                     time.sleep(2 ** attempt)
                 else:
+                    print("Debug: Logging failed after retries")
                     st.error(f"Google Sheets logging failed after retries: {e}")
+                    # Fallback: Save to local CSV
+                    try:
+                        failed_log = pd.DataFrame([log_row])
+                        failed_log.to_csv("/tmp/failed_logs.csv", mode='a', index=False, header=not os.path.exists("/tmp/failed_logs.csv"))
+                        print("Debug: Saved failed log to /tmp/failed_logs.csv")
+                    except Exception as csv_e:
+                        print(f"Debug: Failed to save to CSV: {csv_e}")
     except Exception as e:
+        print(f"Debug: General error in log_to_sheets: {e}")
         st.error(f"Google Sheets logging failed: {e}")
+        # Fallback: Save to local CSV
+        try:
+            failed_log = pd.DataFrame([log_row])
+            failed_log.to_csv("/tmp/failed_logs.csv", mode='a', index=False, header=not os.path.exists("/tmp/failed_logs.csv"))
+            print("Debug: Saved failed log to /tmp/failed_logs.csv")
+        except Exception as csv_e:
+            print(f"Debug: Failed to save to CSV: {csv_e}")
 
 @st.cache_data(ttl=60)
 def fetch_gsheet_log():
@@ -71,6 +93,7 @@ def fetch_gsheet_log():
                     return pd.DataFrame(columns=expected_headers)
                 return pd.DataFrame(data)
             except gspread.exceptions.APIError as e:
+                print(f"Debug: APIError in fetch_gsheet_log, attempt {attempt + 1}: {e}")
                 if "429" in str(e) and attempt < 2:
                     wait_time = 2 ** attempt
                     st.warning(f"Quota limit hit. Retrying in {wait_time} seconds...")
@@ -80,6 +103,7 @@ def fetch_gsheet_log():
         st.error("Failed to fetch Google Sheets log after retries (quota exceeded). Please wait a minute and try again.")
         return pd.DataFrame(columns=expected_headers)
     except Exception as e:
+        print(f"Debug: General error in fetch_gsheet_log: {e}")
         st.error(f"Failed to fetch Google Sheets log: {e}")
         return pd.DataFrame(columns=expected_headers)
 
@@ -358,13 +382,18 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(Spacer(1, 18))
             story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
 
+            print("Debug: Generating PDF")
             doc.build(story)
+            print(f"Debug: PDF generated at {filename}")
         except Exception as e:
+            print(f"Debug: PDF generation failed: {e}")
             st.error(f"PDF generation failed: {e}")
 
         if os.path.exists(filename):
             with open(filename, "rb") as f:
+                print("Debug: Rendering download button")
                 if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
+                    print("Debug: Download PDF button clicked")
                     log_row = {
                         "timestamp": datetime.now().isoformat(),
                         "partner_code": st.session_state.get('partner_code', ''),
@@ -388,6 +417,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                     }
                     log_to_sheets(log_row)
         else:
+            print(f"Debug: PDF file {filename} not found")
             st.error(f"PDF file {filename} not found!")
 
         nav1, nav2, nav3 = st.columns([1,1,1])

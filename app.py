@@ -330,13 +330,38 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
-        # -------- PDF Generation --------
+             # ---------------- PDF GENERATION ----------------
         filename = f"/tmp/Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+
+        # Prepare log_row first
+        log_row = {
+            "timestamp": datetime.now().isoformat(),
+            "partner_code": st.session_state.get('partner_code', ''),
+            "partner_name": st.session_state.get('partner_name', ''),
+            "quote_id": quote_id,
+            "use_case": use_case,
+            "configuration": selected_config,
+            "gpu_type": final_gpu,
+            "units": str(num_units),
+            "price_per_unit": str(price_per_unit),
+            "redsand_monthly": str(base_monthly),
+            "redsand_yearly": str(base_monthly * 12),
+            "redsand_3yr": str(base_monthly * 36),
+            "margin_monthly": str(partner_margin_value),
+            "margin_yearly": str(partner_margin_value * 12),
+            "margin_3yr": str(partner_margin_value * 36),
+            "customer_monthly": str(final_monthly),
+            "customer_yearly": str(final_yearly),
+            "customer_3yr": str(final_3yr),
+            "pdf_file": filename
+        }
+
         try:
             doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
             styles = getSampleStyleSheet()
             story = []
 
+            # Logo and header
             logo_path = "Redsand Logo_White.png"
             if os.path.exists(logo_path):
                 logo = Image(logo_path)
@@ -349,6 +374,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(ht)
             story.append(Spacer(1, 12))
 
+            # Config table
             config_data = [
                 ["Use Case", use_case],
                 ["GPU Type", final_gpu],
@@ -363,6 +389,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(config_table)
             story.append(Spacer(1, 18))
 
+            # Pricing table
             wrap_style = ParagraphStyle(name="wrap", fontSize=9, leading=11, alignment=1)
             pdf_pricing = [
                 [
@@ -393,7 +420,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
             doc.build(story)
 
-            # Log once PDF generated
+            # Log to Google Sheets after successful PDF generation
             log_to_sheets(log_row)
 
         except Exception as e:
@@ -402,7 +429,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         if os.path.exists(filename):
             with open(filename, "rb") as f:
                 st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button")
-
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_quote"):

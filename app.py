@@ -298,26 +298,26 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                        "partner_name": partner_name,
                        "quote_id": quote_id,
                        "use_case": use_case,
-                        "configuration": selected_config,
-                        "gpu_type": final_gpu,
-                        "units": num_units,
+                       "configuration": selected_config,
+                       "gpu_type": final_gpu,
+                       "units": num_units,
 
                         # Base Redsand costs
-                        "redsand_monthly": base_monthly,
-                        "redsand_yearly": base_monthly * 12,
-                        "redsand_3yr": base_monthly * 36,
+                       "redsand_monthly": base_monthly,
+                       "redsand_yearly": base_monthly * 12,
+                       "redsand_3yr": base_monthly * 36,
                     
-                        # Partner margin values in $
-                        "margin_monthly": partner_margin_value,
-                        "margin_yearly": partner_margin_value * 12,
-                        "margin_3yr": partner_margin_value * 36,
+                       # Partner margin values in $
+                       "margin_monthly": partner_margin_value,
+                       "margin_yearly": partner_margin_value * 12,
+                       "margin_3yr": partner_margin_value * 36,
                     
                         # Final customer costs
-                        "customer_monthly": final_monthly,
-                        "customer_yearly": final_yearly,
-                        "customer_3yr": final_3yr,
+                       "customer_monthly": final_monthly,
+                       "customer_yearly": final_yearly,
+                       "customer_3yr": final_3yr,
                     
-                        "pdf_file": filename
+                       "pdf_file": filename
                     }
                     try:
                         log_df = pd.read_csv("config_log.csv")

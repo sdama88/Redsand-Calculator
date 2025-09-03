@@ -292,18 +292,31 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         if os.path.exists(filename):
             with open(filename, "rb") as f:
                 if st.download_button("📄 Download PDF", f, file_name=filename):
-                    log_row = {
-                        "timestamp": datetime.now().isoformat(),
-                        "partner_code": st.session_state.get('partner_code',''),
-                        "partner_name": partner_name,
-                        "quote_id": quote_id,
-                        "use_case": use_case,
+                   log_row = {
+                       "timestamp": datetime.now().isoformat(),
+                       "partner_code": st.session_state.get('partner_code',''),
+                       "partner_name": partner_name,
+                       "quote_id": quote_id,
+                       "use_case": use_case,
                         "configuration": selected_config,
                         "gpu_type": final_gpu,
                         "units": num_units,
-                        "monthly": final_monthly,
-                        "yearly": final_yearly,
-                        "three_year_total": final_3yr,
+
+                        # Base Redsand costs
+                        "redsand_monthly": base_monthly,
+                        "redsand_yearly": base_monthly * 12,
+                        "redsand_3yr": base_monthly * 36,
+                    
+                        # Partner margin values in $
+                        "margin_monthly": partner_margin_value,
+                        "margin_yearly": partner_margin_value * 12,
+                        "margin_3yr": partner_margin_value * 36,
+                    
+                        # Final customer costs
+                        "customer_monthly": final_monthly,
+                        "customer_yearly": final_yearly,
+                        "customer_3yr": final_3yr,
+                    
                         "pdf_file": filename
                     }
                     try:

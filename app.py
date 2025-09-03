@@ -396,13 +396,18 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
 
         # Show full detailed table with Redsand + Margin + Customer prices
         st.markdown("### 📑 Quote Log (Detailed)")
-        st.dataframe(filtered_log.sort_values("timestamp", ascending=False)[[
+        desired_columns = [
             "timestamp", "partner_name", "use_case", "configuration", "gpu_type", "units",
             "redsand_monthly", "margin_monthly", "customer_monthly",
             "redsand_yearly", "margin_yearly", "customer_yearly",
             "redsand_3yr", "margin_3yr", "customer_3yr",
             "quote_id", "pdf_file"
-        ]])
+        ]
+
+# Only keep columns that actually exist in the log file
+available_columns = [col for col in desired_columns if col in filtered_log.columns]
+
+st.dataframe(filtered_log.sort_values("timestamp", ascending=False)[available_columns])
 
         # Download filtered log
         st.download_button(

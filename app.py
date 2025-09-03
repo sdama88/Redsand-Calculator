@@ -39,8 +39,8 @@ def log_to_sheets(log_row):
         for attempt in range(3):
             try:
                 sheet.append_row(row_to_append)
+                st.session_state.quote_logged = True
                 st.info("📤 Quote logged to Google Sheets")
-                st.rerun()
                 return
             except gspread.exceptions.APIError as e:
                 if attempt < 2:
@@ -50,6 +50,7 @@ def log_to_sheets(log_row):
     except Exception as e:
         st.error(f"Google Sheets logging failed: {e}")
 
+@st.cache_data(ttl=60)  # Cache for 60 seconds to avoid quota issues
 def fetch_gsheet_log():
     try:
         client = get_gsheet_client()
@@ -60,10 +61,21 @@ def fetch_gsheet_log():
             "redsand_yearly", "redsand_3yr", "margin_monthly", "margin_yearly",
             "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
         ]
-        data = sheet.get_all_records(expected_headers=expected_headers)
-        if not data:
-            return pd.DataFrame(columns=expected_headers)
-        return pd.DataFrame(data)
+        for attempt in range(3):
+            try:
+                data = sheet.get_all_records(expected_headers=expected_headers)
+                if not data:
+                    return pd.DataFrame(columns=expected_headers)
+                return pd.DataFrame(data)
+            except gspread.exceptions.APIError as e:
+                if "429" in str(e) and attempt < 2:
+                    wait_time = 2 ** attempt
+                    st.warning(f"Quota limit hit. Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    raise
+        st.error("Failed to fetch Google Sheets log after retries (quota exceeded). Please wait a minute and refresh.")
+        return pd.DataFrame(columns=expected_headers)
     except Exception as e:
         st.error(f"Failed to fetch Google Sheets log: {e}")
         return pd.DataFrame(columns=expected_headers)
@@ -95,6 +107,8 @@ if "pdf_ready" not in st.session_state:
     st.session_state["pdf_ready"] = False
 if "quote_id" not in st.session_state:
     st.session_state["quote_id"] = str(uuid.uuid4())[:8]
+if "quote_logged" not in st.session_state:
+    st.session_state["quote_logged"] = False
 
 # ---------------- SAFE LOGOUT ----------------
 def safe_logout():
@@ -105,6 +119,7 @@ def safe_logout():
     st.session_state["admin"] = False
     st.session_state["pdf_ready"] = False
     st.session_state["quote_id"] = str(uuid.uuid4())[:8]
+    st.session_state["quote_logged"] = False
     st.rerun()
 
 # ---------------- NAVIGATION ----------------
@@ -220,6 +235,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.markdown("### 📚 My Quote History")
         partner_code = st.session_state.get('partner_code')
         if st.button("Refresh Quote History"):
+            st.cache_data.clear()  # Clear cache to force refresh
             st.rerun()
         full_log = fetch_gsheet_log()
         if not full_log.empty and partner_code:
@@ -265,6 +281,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
                 row_to_append = [str(test_log.get(h, "")) for h in headers]
                 sheet.append_row(row_to_append)
                 st.success("✅ Test log written to Google Sheets!")
+                st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Test failed: {e}")
@@ -274,6 +291,11 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
     st.subheader("🧾 Quote Summary")
+
+    # Show success message if quote was just logged
+    if st.session_state.get("quote_logged", False):
+        st.success("✅ Quote generated and logged successfully!")
+        st.session_state.quote_logged = False
 
     if st.button("🔓 Logout", key="logout_quote"):
         safe_logout()
@@ -324,34 +346,14 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
-        # ---------------- PDF TABLE ----------------
+        # ---------------- PDF GENERATION AND DOWNLOAD ----------------
         filename = f"Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        log_row = {
-            "timestamp": datetime.now().isoformat(),
-            "partner_code": st.session_state.get('partner_code', ''),
-            "partner_name": st.session_state.get('partner_name', ''),
-            "quote_id": quote_id,
-            "use_case": use_case,
-            "configuration": selected_config,
-            "gpu_type": final_gpu,
-            "units": str(num_units),
-            "price_per_unit": str(price_per_unit),
-            "redsand_monthly": str(base_monthly),
-            "redsand_yearly": str(base_monthly * 12),
-            "redsand_3yr": str(base_monthly * 36),
-            "margin_monthly": str(partner_margin_value),
-            "margin_yearly": str(partner_margin_value * 12),
-            "margin_3yr": str(partner_margin_value * 36),
-            "customer_monthly": str(final_monthly),
-            "customer_yearly": str(final_yearly),
-            "customer_3yr": str(final_3yr),
-            "pdf_file": filename
-        }
         try:
             doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
             styles = getSampleStyleSheet()
             story = []
 
+            # Logo and header
             logo_path = "Redsand Logo_White.png"
             if os.path.exists(logo_path):
                 logo = Image(logo_path)
@@ -364,6 +366,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(ht)
             story.append(Spacer(1, 12))
 
+            # Config table
             config_data = [
                 ["Use Case", use_case],
                 ["GPU Type", final_gpu],
@@ -375,6 +378,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(config_table)
             story.append(Spacer(1, 18))
 
+            # Pricing table with wrapped headers
             wrap_style = ParagraphStyle(name="wrap", fontSize=9, leading=11, alignment=1)
             pdf_pricing = [
                 [
@@ -404,16 +408,39 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
 
             doc.build(story)
-            log_to_sheets(log_row)  # Log before download to ensure logging even if download fails
-            if os.path.exists(filename):
-                with open(filename, "rb") as f:
-                    st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button")
-            else:
-                st.error(f"PDF file {filename} not found!")
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
-            log_to_sheets(log_row)  # Log even if PDF generation fails
 
+        # Download + log (only on click)
+        if os.path.exists(filename):
+            with open(filename, "rb") as f:
+                if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
+                    log_row = {
+                        "timestamp": datetime.now().isoformat(),
+                        "partner_code": st.session_state.get('partner_code', ''),
+                        "partner_name": st.session_state.get('partner_name', ''),
+                        "quote_id": quote_id,
+                        "use_case": use_case,
+                        "configuration": selected_config,
+                        "gpu_type": final_gpu,
+                        "units": str(num_units),
+                        "price_per_unit": str(price_per_unit),
+                        "redsand_monthly": str(base_monthly),
+                        "redsand_yearly": str(base_monthly * 12),
+                        "redsand_3yr": str(base_monthly * 36),
+                        "margin_monthly": str(partner_margin_value),
+                        "margin_yearly": str(partner_margin_value * 12),
+                        "margin_3yr": str(partner_margin_value * 36),
+                        "customer_monthly": str(final_monthly),
+                        "customer_yearly": str(final_yearly),
+                        "customer_3yr": str(final_3yr),
+                        "pdf_file": filename
+                    }
+                    log_to_sheets(log_row)
+        else:
+            st.error(f"PDF file {filename} not found!")
+
+        # Navigation buttons (always rendered)
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_quote"):
@@ -435,6 +462,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         safe_logout()
 
     if st.button("Refresh Admin Log"):
+        st.cache_data.clear()
         st.rerun()
 
     full_log = fetch_gsheet_log()

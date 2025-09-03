@@ -316,7 +316,8 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         # Download + log
         if os.path.exists(filename):
             with open(filename, "rb") as f:
-                if st.download_button("📄 Download PDF", f, file_name=filename):
+               if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
+                    st.write("📝 Download button clicked — logging now...")
                     log_row = {
                         "timestamp": datetime.now().isoformat(),
                         "partner_code": st.session_state.get('partner_code',''),
@@ -326,7 +327,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                         "configuration": selected_config,
                         "gpu_type": final_gpu,
                         "units": num_units,
-                        "price_per_unit": price_per_unit,   # NEW
+                        "price_per_unit": price_per_unit,
                         "redsand_monthly": base_monthly,
                         "redsand_yearly": base_monthly*12,
                         "redsand_3yr": base_monthly*36,
@@ -338,14 +339,16 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                         "customer_3yr": final_3yr,
                         "pdf_file": filename
                     }
+                
                     try:
                         log_df = pd.read_csv("config_log.csv")
                         log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True)
                     except FileNotFoundError:
                         log_df = pd.DataFrame([log_row])
+                
                     log_df.to_csv("config_log.csv", index=False)
                     st.success("✅ Quote saved to history")
-                    log_to_sheets(log_row)
+                    log_to_sheets(log_row)                    
                     st.info("Attempting to log to Google Sheets…")
 
         nav1, nav2, nav3 = st.columns([1,1,1])

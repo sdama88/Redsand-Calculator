@@ -49,6 +49,7 @@ def log_to_sheets(log_row):
             try:
                 sheet.append_row(row_to_append)
                 st.write("Debug: Successfully logged to Google Sheets")
+                st.write(f"Debug: Logged row: {row_to_append}")
                 st.info("📤 Quote logged to Google Sheets")
                 st.rerun()  # Force refresh to update history
                 return
@@ -261,7 +262,8 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             st.rerun()
         full_log = fetch_gsheet_log()
         if not full_log.empty and partner_code:
-            partner_log = full_log[full_log['partner_code'] == partner_code]
+            partner_log = full_log[full_log['partner_code'].astype(str) == str(partner_code)]
+            st.write(f"Debug: Filtered partner_log rows: {len(partner_log)}")
             if not partner_log.empty:
                 st.dataframe(partner_log.sort_values("timestamp", ascending=False))
             else:
@@ -280,11 +282,27 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
                     "redsand_yearly", "redsand_3yr", "margin_monthly", "margin_yearly",
                     "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
                 ]
-                test_log = {h: "test" for h in headers}
-                test_log["timestamp"] = datetime.now().isoformat()
-                test_log["partner_code"] = partner_code or "test"
-                test_log["partner_name"] = st.session_state.get('partner_name', 'test')
-                test_log["quote_id"] = "test-quote"
+                test_log = {
+                    "timestamp": datetime.now().isoformat(),
+                    "partner_code": partner_code or "test",
+                    "partner_name": st.session_state.get('partner_name', 'test'),
+                    "quote_id": "test-quote",
+                    "use_case": "Test Use Case",
+                    "configuration": "Test Config",
+                    "gpu_type": "Test GPU",
+                    "units": "1",
+                    "price_per_unit": "1000",
+                    "redsand_monthly": "1000",
+                    "redsand_yearly": "12000",
+                    "redsand_3yr": "36000",
+                    "margin_monthly": "100",
+                    "margin_yearly": "1200",
+                    "margin_3yr": "3600",
+                    "customer_monthly": "1100",
+                    "customer_yearly": "13200",
+                    "customer_3yr": "39600",
+                    "pdf_file": "test.pdf"
+                }
                 row_to_append = [str(test_log.get(h, "")) for h in headers]
                 sheet.append_row(row_to_append)
                 st.success("✅ Test log written to Google Sheets!")
@@ -429,17 +447,17 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                         "use_case": use_case,
                         "configuration": selected_config,
                         "gpu_type": final_gpu,
-                        "units": num_units,
-                        "price_per_unit": price_per_unit,
-                        "redsand_monthly": base_monthly,
-                        "redsand_yearly": base_monthly * 12,
-                        "redsand_3yr": base_monthly * 36,
-                        "margin_monthly": partner_margin_value,
-                        "margin_yearly": partner_margin_value * 12,
-                        "margin_3yr": partner_margin_value * 36,
-                        "customer_monthly": final_monthly,
-                        "customer_yearly": final_yearly,
-                        "customer_3yr": final_3yr,
+                        "units": str(num_units),  # Ensure string for consistency
+                        "price_per_unit": str(price_per_unit),
+                        "redsand_monthly": str(base_monthly),
+                        "redsand_yearly": str(base_monthly * 12),
+                        "redsand_3yr": str(base_monthly * 36),
+                        "margin_monthly": str(partner_margin_value),
+                        "margin_yearly": str(partner_margin_value * 12),
+                        "margin_3yr": str(partner_margin_value * 36),
+                        "customer_monthly": str(final_monthly),
+                        "customer_yearly": str(final_yearly),
+                        "customer_3yr": str(final_3yr),
                         "pdf_file": filename
                     }
                     st.write("Debug: log_row =", log_row)
@@ -506,7 +524,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         # Apply filters
         filtered_log = full_log
         if selected_partner != "All":
-            filtered_log = filtered_log[filtered_log["partner_name"] == selected_partner]
+            filtered_log = filtered_log[filtered_log["partner_name"].astype(str) == str(selected_partner)]
             st.write(f"Debug: After partner filter, rows: {len(filtered_log)}")
         if len([start_date, end_date]) == 2:
             filtered_log = filtered_log[

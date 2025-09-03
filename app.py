@@ -282,10 +282,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         st.image("Redsand Logo_White.png", width=200)
     st.subheader("🧾 Quote Summary")
 
-    if st.session_state.get("quote_logged", False):
-        st.success("✅ Quote generated and logged successfully!")
-        st.session_state.quote_logged = False
-
     if st.button("🔓 Logout", key="logout_quote"):
         safe_logout()
 
@@ -310,6 +306,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         final_yearly = final_monthly * 12
         final_3yr = final_yearly * 3
 
+        # -------- Streamlit Table --------
         pricing_table = pd.DataFrame({
             "Base Redsand Price": [
                 f"${base_monthly:,.0f}",
@@ -333,31 +330,9 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
+        # -------- PDF Generation --------
         filename = f"/tmp/Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        log_row = {
-            "timestamp": datetime.now().isoformat(),
-            "partner_code": st.session_state.get('partner_code', ''),
-            "partner_name": st.session_state.get('partner_name', ''),
-            "quote_id": quote_id,
-            "use_case": use_case,
-            "configuration": selected_config,
-            "gpu_type": final_gpu,
-            "units": str(num_units),
-            "price_per_unit": str(price_per_unit),
-            "redsand_monthly": str(base_monthly),
-            "redsand_yearly": str(base_monthly * 12),
-            "redsand_3yr": str(base_monthly * 36),
-            "margin_monthly": str(partner_margin_value),
-            "margin_yearly": str(partner_margin_value * 12),
-            "margin_3yr": str(partner_margin_value * 36),
-            "customer_monthly": str(final_monthly),
-            "customer_yearly": str(final_yearly),
-            "customer_3yr": str(final_3yr),
-            "pdf_file": filename
-        }
-
         try:
-            write_debug_log("Generating PDF")
             doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
             styles = getSampleStyleSheet()
             story = []
@@ -381,7 +356,10 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                 ["Units", num_units]
             ]
             config_table = Table([["Field", "Value"]] + config_data, hAlign='LEFT')
-            config_table.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.lightgrey), ('GRID', (0,0), (-1,-1), 0.25, colors.grey)]))
+            config_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('GRID', (0,0), (-1,-1), 0.25, colors.grey)
+            ]))
             story.append(config_table)
             story.append(Spacer(1, 18))
 
@@ -414,30 +392,16 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
 
             doc.build(story)
-            write_debug_log(f"PDF generated at {filename}")
 
-            # Log to Google Sheets immediately after PDF generation
+            # Log once PDF generated
             log_to_sheets(log_row)
 
         except Exception as e:
-            write_debug_log(f"PDF generation failed: {e}")
             st.error(f"PDF generation failed: {e}")
 
         if os.path.exists(filename):
             with open(filename, "rb") as f:
-                write_debug_log("Rendering download button")
                 st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button")
-        else:
-            write_debug_log(f"PDF file {filename} not found")
-            st.error(f"PDF file {filename} not found!")
-
-        # Provide debug log download
-        if os.path.exists("/tmp/debug_log.txt"):
-            with open("/tmp/debug_log.txt", "rb") as f:
-                st.download_button("📜 Download Debug Log", f, file_name="debug_log.txt", key="debug_log_button")
-        if os.path.exists("/tmp/failed_logs.csv"):
-            with open("/tmp/failed_logs.csv", "rb") as f:
-                st.download_button("📜 Download Failed Logs", f, file_name="failed_logs.csv", key="failed_logs_button")
 
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:

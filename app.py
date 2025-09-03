@@ -316,8 +316,8 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         # Download + log
         if os.path.exists(filename):
             with open(filename, "rb") as f:
-               if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
-                    st.write("📝 Download button clicked — logging now...")
+              if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
+                    st.write("📝 Download button clicked — logging now...")  # Debug
                     log_row = {
                         "timestamp": datetime.now().isoformat(),
                         "partner_code": st.session_state.get('partner_code',''),

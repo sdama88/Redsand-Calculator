@@ -307,6 +307,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                         "configuration": selected_config,
                         "gpu_type": final_gpu,
                         "units": num_units,
+                        "price_per_unit": price_per_unit,   # NEW
                         "redsand_monthly": base_monthly,
                         "redsand_yearly": base_monthly*12,
                         "redsand_3yr": base_monthly*36,

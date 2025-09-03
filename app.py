@@ -50,7 +50,7 @@ def log_to_sheets(log_row):
     except Exception as e:
         st.error(f"Google Sheets logging failed: {e}")
 
-@st.cache_data(ttl=60)  # Cache for 60 seconds to avoid quota issues
+@st.cache_data(ttl=60)
 def fetch_gsheet_log():
     try:
         client = get_gsheet_client()
@@ -74,7 +74,7 @@ def fetch_gsheet_log():
                     time.sleep(wait_time)
                 else:
                     raise
-        st.error("Failed to fetch Google Sheets log after retries (quota exceeded). Please wait a minute and refresh.")
+        st.error("Failed to fetch Google Sheets log after retries (quota exceeded). Please wait a minute and try again.")
         return pd.DataFrame(columns=expected_headers)
     except Exception as e:
         st.error(f"Failed to fetch Google Sheets log: {e}")
@@ -210,17 +210,14 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
 
         st.divider()
-        nav1, nav2, nav3, nav4 = st.columns([1,1,1,1])
+        nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_welcome"):
                 go_to("welcome")
         with nav2:
-            if st.button("🔙 Back", key="back_welcome"):
-                go_to("welcome")
-        with nav3:
             if st.button("➡️ Generate Quote", key="gen_quote"):
                 go_to("quote_summary")
-        with nav4:
+        with nav3:
             if st.button("🔓 Logout", key="logout_welcome2"):
                 safe_logout()
 
@@ -234,9 +231,6 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.divider()
         st.markdown("### 📚 My Quote History")
         partner_code = st.session_state.get('partner_code')
-        if st.button("Refresh Quote History"):
-            st.cache_data.clear()  # Clear cache to force refresh
-            st.rerun()
         full_log = fetch_gsheet_log()
         if not full_log.empty and partner_code:
             partner_log = full_log[full_log['partner_code'].astype(str) == str(partner_code)]
@@ -247,52 +241,12 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         else:
             st.info("No quote history available.")
 
-        if st.button("Test Google Sheets Authentication"):
-            try:
-                client = get_gsheet_client()
-                sheet = client.open("RedsandQuotes").worksheet("Sheet1")
-                headers = sheet.row_values(1) or [
-                    "timestamp", "partner_code", "partner_name", "quote_id", "use_case",
-                    "configuration", "gpu_type", "units", "price_per_unit", "redsand_monthly",
-                    "redsand_yearly", "redsand_3yr", "margin_monthly", "margin_yearly",
-                    "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
-                ]
-                test_log = {
-                    "timestamp": datetime.now().isoformat(),
-                    "partner_code": partner_code or "test",
-                    "partner_name": st.session_state.get('partner_name', 'test'),
-                    "quote_id": "test-quote",
-                    "use_case": "Test Use Case",
-                    "configuration": "Test Config",
-                    "gpu_type": "Test GPU",
-                    "units": "1",
-                    "price_per_unit": "1000",
-                    "redsand_monthly": "1000",
-                    "redsand_yearly": "12000",
-                    "redsand_3yr": "36000",
-                    "margin_monthly": "100",
-                    "margin_yearly": "1200",
-                    "margin_3yr": "3600",
-                    "customer_monthly": "1100",
-                    "customer_yearly": "13200",
-                    "customer_3yr": "39600",
-                    "pdf_file": "test.pdf"
-                }
-                row_to_append = [str(test_log.get(h, "")) for h in headers]
-                sheet.append_row(row_to_append)
-                st.success("✅ Test log written to Google Sheets!")
-                st.cache_data.clear()
-                st.rerun()
-            except Exception as e:
-                st.error(f"Test failed: {e}")
-
 # ---------------- QUOTE SUMMARY PAGE ----------------
 elif st.session_state["page"] == "quote_summary" and st.session_state.get("logged_in"):
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
     st.subheader("🧾 Quote Summary")
 
-    # Show success message if quote was just logged
     if st.session_state.get("quote_logged", False):
         st.success("✅ Quote generated and logged successfully!")
         st.session_state.quote_logged = False
@@ -315,14 +269,12 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
     else:
         price_per_unit = price_row["monthly_price_usd"].values[0]
 
-        # Base and final pricing
         base_monthly = price_per_unit * num_units
         partner_margin_value = base_monthly * (partner_margin / 100)
         final_monthly = base_monthly + partner_margin_value
         final_yearly = final_monthly * 12
         final_3yr = final_yearly * 3
 
-        # ---------------- STREAMLIT TABLE ----------------
         pricing_table = pd.DataFrame({
             "Base Redsand Price": [
                 f"${base_monthly:,.0f}",
@@ -346,14 +298,12 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
-        # ---------------- PDF GENERATION AND DOWNLOAD ----------------
-        filename = f"Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+        filename = f"/tmp/Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
         try:
             doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
             styles = getSampleStyleSheet()
             story = []
 
-            # Logo and header
             logo_path = "Redsand Logo_White.png"
             if os.path.exists(logo_path):
                 logo = Image(logo_path)
@@ -366,7 +316,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(ht)
             story.append(Spacer(1, 12))
 
-            # Config table
             config_data = [
                 ["Use Case", use_case],
                 ["GPU Type", final_gpu],
@@ -378,7 +327,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(config_table)
             story.append(Spacer(1, 18))
 
-            # Pricing table with wrapped headers
             wrap_style = ParagraphStyle(name="wrap", fontSize=9, leading=11, alignment=1)
             pdf_pricing = [
                 [
@@ -411,7 +359,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
 
-        # Download + log (only on click)
         if os.path.exists(filename):
             with open(filename, "rb") as f:
                 if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
@@ -440,7 +387,6 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         else:
             st.error(f"PDF file {filename} not found!")
 
-        # Navigation buttons (always rendered)
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_quote"):
@@ -460,10 +406,6 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
 
     if st.button("🔓 Logout", key="logout_admin"):
         safe_logout()
-
-    if st.button("Refresh Admin Log"):
-        st.cache_data.clear()
-        st.rerun()
 
     full_log = fetch_gsheet_log()
     if not full_log.empty:

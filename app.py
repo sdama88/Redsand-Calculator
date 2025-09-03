@@ -341,14 +341,14 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                     }
                 
                     try:
-                        log_df = pd.read_csv("config_log.csv")
+                        log_df = pd.read_csv("config_log_new.csv")
                         # Align columns safely
                         log_df = pd.concat([log_df, pd.DataFrame([log_row])], ignore_index=True, sort=False)
                     except FileNotFoundError:
                         # First time → let log_row define the schema
                         log_df = pd.DataFrame([log_row])
                     
-                    log_df.to_csv("config_log.csv", index=False)
+                    log_df.to_csv("config_log_new.csv", index=False)
                     st.success("✅ Quote saved to history")
                     log_to_sheets(log_row)                    
                     st.info("Attempting to log to Google Sheets…")

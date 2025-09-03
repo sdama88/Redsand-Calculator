@@ -23,6 +23,7 @@ def load_data():
 
 workloads, upgrade_rules, pricing, configs, credentials = load_data()
 
+# ---------------- SESSION KEYS ----------------
 if "page" not in st.session_state:
     st.session_state["page"] = "login"
 if "logged_in" not in st.session_state:
@@ -34,7 +35,7 @@ if "pdf_ready" not in st.session_state:
 if "quote_id" not in st.session_state:
     st.session_state["quote_id"] = str(uuid.uuid4())[:8]
 
-# ------------------ SAFE LOGOUT FUNCTION ------------------
+# ---------------- SAFE LOGOUT ----------------
 def safe_logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -45,77 +46,12 @@ def safe_logout():
     st.session_state["quote_id"] = str(uuid.uuid4())[:8]
     st.rerun()
 
-# ------------------ NAVIGATION HELPER ------------------
+# ---------------- NAVIGATION ----------------
 def go_to(page):
     st.session_state["page"] = page
     st.rerun()
-# ------------------ PDF GENERATOR ------------------
-def generate_pdf(filename, summary_data, partner_name, quote_id):
-    try:
-        doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
-        styles = getSampleStyleSheet()
-        normal_style = styles['Normal']
-        title_style = styles['Title']
-        title_style.fontSize = 18
-        normal_style.fontSize = 11
-        story = []
 
-        logo_path = "Redsand Logo_White.png"
-        if os.path.exists(logo_path):
-            logo = Image(logo_path)
-            logo._restrictSize(1.8*inch, 0.6*inch)
-        else:
-            logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
-
-        header = [[Paragraph("Redsand Partner Configuration Summary", title_style), logo]]
-        ht = Table(header, colWidths=[4.5*inch, 1.8*inch])
-        ht.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
-        story.append(ht)
-
-        story.append(Spacer(1, 8))
-        story.append(Paragraph(datetime.now().strftime("%A, %d %B %Y — %H:%M:%S"), normal_style))
-        story.append(Paragraph(f"Quote ID: {quote_id}", normal_style))
-        story.append(Paragraph(f"Partner: {partner_name}", normal_style))
-        story.append(Spacer(1, 18))
-
-        config_rows = [row for row in summary_data if row[0] in ["Use Case", "GPU Type", "Configuration", "Units"]]
-        pricing_rows = [row for row in summary_data if "Cost" in row[0] or "Total" in row[0]]
-
-        if config_rows:
-            story.append(Paragraph("Configuration Details", ParagraphStyle('Heading', fontSize=12, textColor=colors.black, spaceAfter=6)))
-            config_table = Table([["Field", "Value"]] + config_rows, hAlign='LEFT', colWidths=[150, 300])
-            config_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
-            ]))
-            story.append(config_table)
-            story.append(Spacer(1, 18))
-
-        if pricing_rows:
-            story.append(Paragraph("Pricing Details", ParagraphStyle('Heading', fontSize=12, textColor=colors.black, spaceAfter=6)))
-            pricing_table = Table([["Field", "Value"]] + pricing_rows, hAlign='LEFT', colWidths=[150, 300])
-            pricing_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.grey)
-            ]))
-            story.append(pricing_table)
-            story.append(Spacer(1, 24))
-
-        disclaimer = (
-            "<b>Disclaimer:</b> The pricing provided in this summary is indicative only. "
-            "Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, "
-            "service-level agreements, hardware availability, and customer-specific requirements. "
-            "Please contact Redsand at <b>hello@redsand.ai</b> for an official quote or custom configuration."
-        )
-        story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
-
-        doc.build(story)
-    except Exception as e:
-        st.error(f"PDF generation failed: {e}")
-
-# ------------------ LOGIN PAGE ------------------
+# ---------------- LOGIN PAGE ----------------
 if st.session_state["page"] == "login":
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
@@ -140,7 +76,7 @@ if st.session_state["page"] == "login":
             else:
                 st.error("Invalid partner code or password.")
 
-# ------------------ WELCOME PAGE ------------------
+# ---------------- WELCOME PAGE ----------------
 elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and not st.session_state.get("admin"):
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
@@ -235,7 +171,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         except FileNotFoundError:
             st.info("Quote log file not found.")
 
-# ------------------ QUOTE SUMMARY PAGE ------------------
+# ---------------- QUOTE SUMMARY PAGE ----------------
 elif st.session_state["page"] == "quote_summary" and st.session_state.get("logged_in"):
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
@@ -250,57 +186,116 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
     num_units = st.session_state.get("preview_units", 0)
     quote_id = st.session_state["quote_id"]
 
+    partner_name = st.session_state.get("partner_name", "Partner")
+    partner_margin = st.session_state.get("partner_margin", 0)
+
     price_row = pricing[pricing["configuration_name"] == selected_config]
     if price_row.empty:
         st.error(f"No pricing found for {selected_config}.")
     else:
         price_per_unit = price_row["monthly_price_usd"].values[0]
-        margin_multiplier = 1 + (st.session_state.get("partner_margin", 0) / 100)
 
-        monthly = (price_per_unit * num_units) * margin_multiplier
-        yearly = monthly * 12
-        total_3yr = yearly * 3
+        # Base and final pricing
+        base_monthly = price_per_unit * num_units
+        margin_multiplier = 1 + (partner_margin / 100)
+        final_monthly = base_monthly * margin_multiplier
+        final_yearly = final_monthly * 12
+        final_3yr = final_yearly * 3
 
-        config_details = [
-            ["Use Case", use_case],
-            ["GPU Type", final_gpu],
-            ["Configuration", selected_config],
-            ["Units", num_units]
-        ]
-
-        pricing_details = [
-            ["Monthly Cost", f"${monthly:,.0f}"],
-            ["Yearly Cost", f"${yearly:,.0f}"],
-            ["3-Year Total", f"${total_3yr:,.0f}"]
-        ]
-
-        st.markdown("### Configuration Details")
-        st.table(config_details)
+        # ---------------- STREAMLIT TABLE ----------------
+        pricing_table = pd.DataFrame({
+            "Base Redsand Price": [
+                f"${base_monthly:,.0f}",
+                f"${base_monthly*12:,.0f}",
+                f"${base_monthly*36:,.0f}"
+            ],
+            f"Partner Margin ({partner_margin}%) — {partner_name}": ["", "", ""],
+            "Final Customer Price": [
+                f"${final_monthly:,.0f}",
+                f"${final_yearly:,.0f}",
+                f"${final_3yr:,.0f}"
+            ]
+        }, index=["Monthly", "Yearly", "3-Year Total"])
 
         st.markdown("### Pricing Details")
-        st.table(pricing_details)
+        st.table(pricing_table)
 
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
+        # ---------------- PDF TABLE ----------------
         filename = f"Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-        summary_data = [["Use Case", use_case],["GPU Type", final_gpu],["Configuration", selected_config],["Units", num_units],["Monthly Cost", f"${monthly:,.0f}"],["Yearly Cost", f"${yearly:,.0f}"],["3-Year Total", f"${total_3yr:,.0f}"]]
-        generate_pdf(filename, summary_data, st.session_state.get('partner_name',''), quote_id)
+        try:
+            doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+            styles = getSampleStyleSheet()
+            story = []
 
+            # Logo and header
+            logo_path = "Redsand Logo_White.png"
+            if os.path.exists(logo_path):
+                logo = Image(logo_path)
+                logo._restrictSize(1.8*inch, 0.6*inch)
+            else:
+                logo = Paragraph("<b>Redsand.ai</b>", ParagraphStyle('fallbackLogo', fontSize=20, textColor=colors.HexColor("#d71920")))
+
+            header = [[Paragraph("Redsand Partner Configuration Summary", styles['Title']), logo]]
+            ht = Table(header, colWidths=[4.5*inch, 1.8*inch])
+            story.append(ht)
+            story.append(Spacer(1, 12))
+
+            # Config table
+            config_data = [
+                ["Use Case", use_case],
+                ["GPU Type", final_gpu],
+                ["Configuration", selected_config],
+                ["Units", num_units]
+            ]
+            config_table = Table([["Field", "Value"]] + config_data, hAlign='LEFT')
+            config_table.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.lightgrey), ('GRID', (0,0), (-1,-1), 0.25, colors.grey)]))
+            story.append(config_table)
+            story.append(Spacer(1, 18))
+
+            # Pricing table with 3 columns
+            pdf_pricing = [
+                ["Period", "Base Redsand Price", f"Partner Margin ({partner_name})", "Final Customer Price"],
+                ["Monthly", f"${base_monthly:,.0f}", f"{partner_margin}%", f"${final_monthly:,.0f}"],
+                ["Yearly", f"${base_monthly*12:,.0f}", f"{partner_margin}%", f"${final_yearly:,.0f}"],
+                ["3-Year Total", f"${base_monthly*36:,.0f}", f"{partner_margin}%", f"${final_3yr:,.0f}"]
+            ]
+            pricing_table_pdf = Table(pdf_pricing, hAlign='LEFT', colWidths=[100,120,150,150])
+            pricing_table_pdf.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                ('ALIGN', (1,1), (-1,-1), 'RIGHT')
+            ]))
+            story.append(pricing_table_pdf)
+
+            disclaimer = ("<b>Disclaimer:</b> The pricing provided in this summary is indicative only. "
+                          "Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, "
+                          "service-level agreements, hardware availability, and customer-specific requirements. "
+                          "Please contact Redsand at <b>hello@redsand.ai</b> for an official quote or custom configuration.")
+            story.append(Spacer(1, 18))
+            story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
+
+            doc.build(story)
+        except Exception as e:
+            st.error(f"PDF generation failed: {e}")
+
+        # Download + log
         if os.path.exists(filename):
             with open(filename, "rb") as f:
                 if st.download_button("📄 Download PDF", f, file_name=filename):
                     log_row = {
                         "timestamp": datetime.now().isoformat(),
                         "partner_code": st.session_state.get('partner_code',''),
-                        "partner_name": st.session_state.get('partner_name',''),
+                        "partner_name": partner_name,
                         "quote_id": quote_id,
                         "use_case": use_case,
                         "configuration": selected_config,
                         "gpu_type": final_gpu,
                         "units": num_units,
-                        "monthly": monthly,
-                        "yearly": yearly,
-                        "three_year_total": total_3yr,
+                        "monthly": final_monthly,
+                        "yearly": final_yearly,
+                        "three_year_total": final_3yr,
                         "pdf_file": filename
                     }
                     try:
@@ -322,7 +317,7 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             if st.button("🔓 Logout", key="logout_quote2"):
                 safe_logout()
 
-# ------------------ ADMIN PANEL ------------------
+# ---------------- ADMIN PANEL ----------------
 elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and st.session_state.get("admin"):
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
@@ -335,7 +330,6 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         full_log = pd.read_csv("config_log.csv")
         full_log["timestamp"] = pd.to_datetime(full_log["timestamp"], errors="coerce")
 
-        # 🔹 Metrics bar
         total_quotes = len(full_log)
         total_partners = full_log["partner_name"].nunique()
         latest_quote_date = full_log["timestamp"].max().strftime("%d %b %Y %H:%M") if not full_log.empty else "N/A"
@@ -345,11 +339,9 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         col2.metric("👥 Total Partners", total_partners)
         col3.metric("🕒 Latest Quote", latest_quote_date)
 
-        # Partner filter
         partner_options = ["All"] + sorted(full_log["partner_name"].dropna().unique().tolist())
         selected_partner = st.selectbox("Filter by Partner", partner_options, key="admin_partner_filter")
 
-        # Date range filter
         min_date = full_log["timestamp"].min().date() if not full_log.empty else datetime.today().date()
         max_date = full_log["timestamp"].max().date() if not full_log.empty else datetime.today().date()
         start_date, end_date = st.date_input(
@@ -360,10 +352,8 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             key="admin_date_filter"
         )
 
-        # Quote ID search
         search_quote_id = st.text_input("Search by Quote ID", key="admin_quote_search")
 
-        # Apply filters
         filtered_log = full_log
         if selected_partner != "All":
             filtered_log = filtered_log[filtered_log["partner_name"] == selected_partner]
@@ -387,9 +377,4 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.info("No logs found yet.")
 
     nav1, nav2 = st.columns([1, 1])
-    with nav1:
-        if st.button("🏠 Home", key="home_admin"):
-            go_to("welcome")
-    with nav2:
-        if st.button("🔙 Back", key="back_admin"):
-            go_to("welcome")
+   

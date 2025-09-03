@@ -330,10 +330,10 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
-             # ---------------- PDF GENERATION ----------------
+                 # ---------------- PDF GENERATION ----------------
         filename = f"/tmp/Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
 
-        # Prepare log_row first
+        # Prepare log_row first (to use when download is confirmed)
         log_row = {
             "timestamp": datetime.now().isoformat(),
             "partner_code": st.session_state.get('partner_code', ''),
@@ -420,15 +420,15 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
 
             doc.build(story)
 
-            # Log to Google Sheets after successful PDF generation
-            log_to_sheets(log_row)
-
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
 
+        # Only log once user downloads the PDF
         if os.path.exists(filename):
             with open(filename, "rb") as f:
-                st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button")
+                if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
+                    log_to_sheets(log_row)   # <-- logging only on download
+                    st.success("✅ Quote saved to Redsand database")
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:
             if st.button("🏠 Home", key="home_quote"):

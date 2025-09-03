@@ -1,7 +1,5 @@
 streamlit
 pandas
+gspread==6.1.0
+google-auth==2.35.0
 reportlab
-gspread
-google-auth
-google-auth-oauthlib
-google-auth-httplib2

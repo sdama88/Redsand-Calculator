@@ -12,6 +12,14 @@ import gspread
 from google.oauth2.service_account import Credentials
 import time
 
+def write_debug_log(message):
+    """Append debug message to /tmp/debug_log.txt."""
+    try:
+        with open("/tmp/debug_log.txt", "a") as f:
+            f.write(f"{datetime.now().isoformat()}: {message}\n")
+    except Exception as e:
+        pass  # Silent fail to avoid UI clutter
+
 def get_gsheet_client():
     try:
         if "gcp_service_account" not in st.secrets:
@@ -23,13 +31,13 @@ def get_gsheet_client():
         creds = Credentials.from_service_account_info(secrets, scopes=scope)
         return gspread.authorize(creds)
     except Exception as e:
-        print(f"Debug: Failed to create Google Sheets client: {e}")
+        write_debug_log(f"Failed to create Google Sheets client: {e}")
         st.error(f"Failed to create Google Sheets client: {e}")
         raise
 
 def log_to_sheets(log_row):
     try:
-        print("Debug: Starting log_to_sheets")
+        write_debug_log("Starting log_to_sheets")
         client = get_gsheet_client()
         sheet = client.open("RedsandQuotes").worksheet("Sheet1")
         headers = sheet.row_values(1) or [
@@ -39,41 +47,41 @@ def log_to_sheets(log_row):
             "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
         ]
         if not headers:
-            print("Debug: Sheet is empty, setting headers")
+            write_debug_log("Sheet is empty, setting headers")
             sheet.append_row(headers)
         row_to_append = [str(log_row.get(h, "")) for h in headers]
         for attempt in range(3):
             try:
-                print(f"Debug: Attempt {attempt + 1} to write row: {row_to_append}")
+                write_debug_log(f"Attempt {attempt + 1} to write row: {row_to_append}")
                 sheet.append_row(row_to_append)
-                print("Debug: Successfully logged to Google Sheets")
+                write_debug_log("Successfully logged to Google Sheets")
                 st.session_state.quote_logged = True
                 st.info("📤 Quote logged to Google Sheets")
                 return
             except gspread.exceptions.APIError as e:
-                print(f"Debug: APIError on attempt {attempt + 1}: {e}")
+                write_debug_log(f"APIError on attempt {attempt + 1}: {e}")
                 if attempt < 2:
                     time.sleep(2 ** attempt)
                 else:
-                    print("Debug: Logging failed after retries")
                     st.error(f"Google Sheets logging failed after retries: {e}")
-                    # Fallback: Save to local CSV
+                    write_debug_log("Logging failed after retries")
+                    # Fallback: Save to CSV
                     try:
                         failed_log = pd.DataFrame([log_row])
                         failed_log.to_csv("/tmp/failed_logs.csv", mode='a', index=False, header=not os.path.exists("/tmp/failed_logs.csv"))
-                        print("Debug: Saved failed log to /tmp/failed_logs.csv")
+                        write_debug_log("Saved failed log to /tmp/failed_logs.csv")
                     except Exception as csv_e:
-                        print(f"Debug: Failed to save to CSV: {csv_e}")
+                        write_debug_log(f"Failed to save to CSV: {csv_e}")
     except Exception as e:
-        print(f"Debug: General error in log_to_sheets: {e}")
+        write_debug_log(f"General error in log_to_sheets: {e}")
         st.error(f"Google Sheets logging failed: {e}")
-        # Fallback: Save to local CSV
+        # Fallback: Save to CSV
         try:
             failed_log = pd.DataFrame([log_row])
             failed_log.to_csv("/tmp/failed_logs.csv", mode='a', index=False, header=not os.path.exists("/tmp/failed_logs.csv"))
-            print("Debug: Saved failed log to /tmp/failed_logs.csv")
+            write_debug_log("Saved failed log to /tmp/failed_logs.csv")
         except Exception as csv_e:
-            print(f"Debug: Failed to save to CSV: {csv_e}")
+            write_debug_log(f"Failed to save to CSV: {csv_e}")
 
 @st.cache_data(ttl=60)
 def fetch_gsheet_log():
@@ -93,7 +101,7 @@ def fetch_gsheet_log():
                     return pd.DataFrame(columns=expected_headers)
                 return pd.DataFrame(data)
             except gspread.exceptions.APIError as e:
-                print(f"Debug: APIError in fetch_gsheet_log, attempt {attempt + 1}: {e}")
+                write_debug_log(f"APIError in fetch_gsheet_log, attempt {attempt + 1}: {e}")
                 if "429" in str(e) and attempt < 2:
                     wait_time = 2 ** attempt
                     st.warning(f"Quota limit hit. Retrying in {wait_time} seconds...")
@@ -103,7 +111,7 @@ def fetch_gsheet_log():
         st.error("Failed to fetch Google Sheets log after retries (quota exceeded). Please wait a minute and try again.")
         return pd.DataFrame(columns=expected_headers)
     except Exception as e:
-        print(f"Debug: General error in fetch_gsheet_log: {e}")
+        write_debug_log(f"General error in fetch_gsheet_log: {e}")
         st.error(f"Failed to fetch Google Sheets log: {e}")
         return pd.DataFrame(columns=expected_headers)
 
@@ -326,7 +334,30 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
         st.markdown("<small><i>Disclaimer: The pricing provided in this summary is indicative only. Final pricing will vary based on the actual configuration including RAM, storage, special hardware features, service-level agreements, hardware availability, and customer-specific requirements. Please contact Redsand at hello@redsand.ai for an official quote or custom configuration.</i></small>", unsafe_allow_html=True)
 
         filename = f"/tmp/Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
+        log_row = {
+            "timestamp": datetime.now().isoformat(),
+            "partner_code": st.session_state.get('partner_code', ''),
+            "partner_name": st.session_state.get('partner_name', ''),
+            "quote_id": quote_id,
+            "use_case": use_case,
+            "configuration": selected_config,
+            "gpu_type": final_gpu,
+            "units": str(num_units),
+            "price_per_unit": str(price_per_unit),
+            "redsand_monthly": str(base_monthly),
+            "redsand_yearly": str(base_monthly * 12),
+            "redsand_3yr": str(base_monthly * 36),
+            "margin_monthly": str(partner_margin_value),
+            "margin_yearly": str(partner_margin_value * 12),
+            "margin_3yr": str(partner_margin_value * 36),
+            "customer_monthly": str(final_monthly),
+            "customer_yearly": str(final_yearly),
+            "customer_3yr": str(final_3yr),
+            "pdf_file": filename
+        }
+
         try:
+            write_debug_log("Generating PDF")
             doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
             styles = getSampleStyleSheet()
             story = []
@@ -382,43 +413,31 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             story.append(Spacer(1, 18))
             story.append(Paragraph(disclaimer, ParagraphStyle('Disclaimer', fontSize=9, textColor=colors.grey, leading=12)))
 
-            print("Debug: Generating PDF")
             doc.build(story)
-            print(f"Debug: PDF generated at {filename}")
+            write_debug_log(f"PDF generated at {filename}")
+
+            # Log to Google Sheets immediately after PDF generation
+            log_to_sheets(log_row)
+
         except Exception as e:
-            print(f"Debug: PDF generation failed: {e}")
+            write_debug_log(f"PDF generation failed: {e}")
             st.error(f"PDF generation failed: {e}")
 
         if os.path.exists(filename):
             with open(filename, "rb") as f:
-                print("Debug: Rendering download button")
-                if st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button"):
-                    print("Debug: Download PDF button clicked")
-                    log_row = {
-                        "timestamp": datetime.now().isoformat(),
-                        "partner_code": st.session_state.get('partner_code', ''),
-                        "partner_name": st.session_state.get('partner_name', ''),
-                        "quote_id": quote_id,
-                        "use_case": use_case,
-                        "configuration": selected_config,
-                        "gpu_type": final_gpu,
-                        "units": str(num_units),
-                        "price_per_unit": str(price_per_unit),
-                        "redsand_monthly": str(base_monthly),
-                        "redsand_yearly": str(base_monthly * 12),
-                        "redsand_3yr": str(base_monthly * 36),
-                        "margin_monthly": str(partner_margin_value),
-                        "margin_yearly": str(partner_margin_value * 12),
-                        "margin_3yr": str(partner_margin_value * 36),
-                        "customer_monthly": str(final_monthly),
-                        "customer_yearly": str(final_yearly),
-                        "customer_3yr": str(final_3yr),
-                        "pdf_file": filename
-                    }
-                    log_to_sheets(log_row)
+                write_debug_log("Rendering download button")
+                st.download_button("📄 Download PDF", f, file_name=filename, key="download_pdf_button")
         else:
-            print(f"Debug: PDF file {filename} not found")
+            write_debug_log(f"PDF file {filename} not found")
             st.error(f"PDF file {filename} not found!")
+
+        # Provide debug log download
+        if os.path.exists("/tmp/debug_log.txt"):
+            with open("/tmp/debug_log.txt", "rb") as f:
+                st.download_button("📜 Download Debug Log", f, file_name="debug_log.txt", key="debug_log_button")
+        if os.path.exists("/tmp/failed_logs.csv"):
+            with open("/tmp/failed_logs.csv", "rb") as f:
+                st.download_button("📜 Download Failed Logs", f, file_name="failed_logs.csv", key="failed_logs_button")
 
         nav1, nav2, nav3 = st.columns([1,1,1])
         with nav1:

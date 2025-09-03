@@ -30,11 +30,14 @@ def log_to_sheets(log_row):
     try:
         client = get_gsheet_client()
         sheet = client.open("RedsandQuotes").worksheet("Sheet1")
-        headers = sheet.row_values(1)
-        expected_headers = list(log_row.keys())
+        headers = sheet.row_values(1) or [
+            "timestamp", "partner_code", "partner_name", "quote_id", "use_case",
+            "configuration", "gpu_type", "units", "price_per_unit", "redsand_monthly",
+            "redsand_yearly", "redsand_3yr", "margin_monthly", "margin_yearly",
+            "margin_3yr", "customer_monthly", "customer_yearly", "customer_3yr", "pdf_file"
+        ]
         if not headers:
-            sheet.append_row(expected_headers)
-            headers = expected_headers
+            sheet.append_row(headers)
         row_to_append = [str(log_row.get(h, "")) for h in headers]
         for attempt in range(3):
             try:

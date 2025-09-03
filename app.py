@@ -405,9 +405,9 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         ]
 
 # Only keep columns that actually exist in the log file
-available_columns = [col for col in desired_columns if col in filtered_log.columns]
-
-st.dataframe(filtered_log.sort_values("timestamp", ascending=False)[available_columns])
+        available_columns = [col for col in desired_columns if col in filtered_log.columns]
+        
+        st.dataframe(filtered_log.sort_values("timestamp", ascending=False)[available_columns])
 
         # Download filtered log
         st.download_button(

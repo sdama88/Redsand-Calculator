@@ -56,7 +56,7 @@ def log_to_sheets(log_row):
                 sheet.append_row(row_to_append)
                 write_debug_log("Successfully logged to Google Sheets")
                 st.session_state.quote_logged = True
-                st.info("📤 Quote logged to Google Sheets")
+                st.info("📤 Quote logged to Redsand")
                 return
             except gspread.exceptions.APIError as e:
                 write_debug_log(f"APIError on attempt {attempt + 1}: {e}")

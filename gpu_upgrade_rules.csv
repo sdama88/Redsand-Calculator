@@ -1,4 +1,4 @@
 current_gpu,upgrade_gpu,user_threshold
-H100,B200,200
-H200,B200,200
-B200,B200,0
+H200,H100,200
+H100,H100,0
+L40S,H100,300

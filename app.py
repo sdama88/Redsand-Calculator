@@ -189,6 +189,8 @@ if st.session_state["page"] == "login":
 
 # ---------------- WELCOME PAGE ----------------
 elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in") and not st.session_state.get("admin"):
+    import math  # needed for ceil()
+
     if os.path.exists("Redsand Logo_White.png"):
         st.image("Redsand Logo_White.png", width=200)
     st.subheader(f"🔐 Welcome, {st.session_state['partner_name']}")
@@ -207,12 +209,15 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
             num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
 
-            # --- General Auto Logic (no special Voice Bot case) ---
+            # --- Auto Logic (uses workloads.csv directly) ---
             workload_row = workloads[workloads["workload_name"] == selected_use_case].iloc[0]
             base_gpu = workload_row["gpu_type"]
             users_per_unit = workload_row["users_per_gpu"]
-            preview_units = max(1, int(num_users / users_per_unit))
 
+            # ✅ Use ceil() so scaling works correctly
+            preview_units = max(1, math.ceil(num_users / users_per_unit))
+
+            # Apply GPU upgrade rules if threshold crossed
             upgrade = upgrade_rules[
                 (upgrade_rules["current_gpu"] == base_gpu) &
                 (num_users >= upgrade_rules["user_threshold"])
@@ -236,7 +241,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.write(f"**Configuration:** {preview_config}")
         st.write(f"**Units:** {preview_units}")
 
-        # Save to session
+        # Save selections
         st.session_state["preview_config"] = preview_config
         st.session_state["preview_gpu"] = preview_gpu
         st.session_state["preview_units"] = preview_units
@@ -244,7 +249,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.session_state["quote_mode"] = "Auto" if "Auto" in selected_mode else "Manual"
 
         st.divider()
-        nav1, nav2, nav3 = st.columns([1,1,1])
+        nav1, nav2, nav3 = st.columns([1, 1, 1])
         with nav1:
             if st.button("🏠 Home", key="home_welcome"):
                 go_to("welcome")
@@ -280,7 +285,6 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
                 st.info("No previous quotes found for this partner.")
         else:
             st.info("No quote history available.")
-
 # ---------------- QUOTE SUMMARY PAGE ----------------
 elif st.session_state["page"] == "quote_summary" and st.session_state.get("logged_in"):
     if os.path.exists("Redsand Logo_White.png"):

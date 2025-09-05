@@ -314,28 +314,37 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
     else:
         price_per_unit = price_row["monthly_price_usd"].values[0]
 
-        base_monthly = price_per_unit * num_units
-        partner_margin_value = base_monthly * (partner_margin / 100)
-        final_monthly = base_monthly + partner_margin_value
-        final_yearly = final_monthly * 12
-        final_3yr = final_yearly * 3
+        # --- Constant customer price ---
+        customer_monthly = price_per_unit * num_units
+        customer_yearly = customer_monthly * 12
+        customer_3yr = customer_yearly * 3
 
-        # Show preview table before download
+        # --- Partner margin extracted ---
+        margin_monthly = customer_monthly * (partner_margin / 100)
+        margin_yearly = margin_monthly * 12
+        margin_3yr = margin_yearly * 3
+
+        # --- Redsand base adjusts dynamically ---
+        redsand_monthly = customer_monthly - margin_monthly
+        redsand_yearly = customer_yearly - margin_yearly
+        redsand_3yr = customer_3yr - margin_3yr
+
+        # ---------------- STREAMLIT TABLE ----------------
         pricing_table = pd.DataFrame({
             "Base Redsand Price": [
-                f"${base_monthly:,.0f}",
-                f"${base_monthly*12:,.0f}",
-                f"${base_monthly*36:,.0f}"
+                f"${redsand_monthly:,.0f}",
+                f"${redsand_yearly:,.0f}",
+                f"${redsand_3yr:,.0f}"
             ],
             f"Partner Margin ({partner_margin}%) – {partner_name}": [
-                f"${partner_margin_value:,.0f}",
-                f"${partner_margin_value*12:,.0f}",
-                f"${partner_margin_value*36:,.0f}"
+                f"${margin_monthly:,.0f}",
+                f"${margin_yearly:,.0f}",
+                f"${margin_3yr:,.0f}"
             ],
             "Final Customer Price": [
-                f"${final_monthly:,.0f}",
-                f"${final_yearly:,.0f}",
-                f"${final_3yr:,.0f}"
+                f"${customer_monthly:,.0f}",
+                f"${customer_yearly:,.0f}",
+                f"${customer_3yr:,.0f}"
             ]
         }, index=["Monthly", "Yearly", "3-Year Total"])
 
@@ -350,12 +359,11 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
             unsafe_allow_html=True
         )
 
-        # One button = generate + log + download
+        # ---------------- PDF GENERATION + LOG ----------------
         if st.button("📄 Generate & Download Quote PDF", key="generate_download_pdf"):
             filename = f"/tmp/Redsand_Config_{st.session_state.get('partner_code','')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
 
             try:
-                # --- Build PDF ---
                 doc = SimpleDocTemplate(filename, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
                 styles = getSampleStyleSheet()
                 story = []
@@ -379,8 +387,10 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                     ["Units", num_units]
                 ]
                 config_table = Table([["Field", "Value"]] + config_data, hAlign='LEFT')
-                config_table.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-                                                  ('GRID', (0,0), (-1,-1), 0.25, colors.grey)]))
+                config_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                    ('GRID', (0,0), (-1,-1), 0.25, colors.grey)
+                ]))
                 story.append(config_table)
                 story.append(Spacer(1, 18))
 
@@ -390,9 +400,9 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                      Paragraph("Base Redsand Price", wrap_style),
                      Paragraph(f"Partner Margin ({partner_margin}%) – {partner_name}", wrap_style),
                      Paragraph("Final Customer Price", wrap_style)],
-                    ["Monthly", f"${base_monthly:,.0f}", f"${partner_margin_value:,.0f}", f"${final_monthly:,.0f}"],
-                    ["Yearly", f"${base_monthly*12:,.0f}", f"${partner_margin_value*12:,.0f}", f"${final_yearly:,.0f}"],
-                    ["3-Year Total", f"${base_monthly*36:,.0f}", f"${partner_margin_value*36:,.0f}", f"${final_3yr:,.0f}"]
+                    ["Monthly", f"${redsand_monthly:,.0f}", f"${margin_monthly:,.0f}", f"${customer_monthly:,.0f}"],
+                    ["Yearly", f"${redsand_yearly:,.0f}", f"${margin_yearly:,.0f}", f"${customer_yearly:,.0f}"],
+                    ["3-Year Total", f"${redsand_3yr:,.0f}", f"${margin_3yr:,.0f}", f"${customer_3yr:,.0f}"]
                 ]
                 pricing_table_pdf = Table(pdf_pricing, hAlign='LEFT', colWidths=[80, 120, 170, 150])
                 pricing_table_pdf.setStyle(TableStyle([
@@ -423,15 +433,15 @@ elif st.session_state["page"] == "quote_summary" and st.session_state.get("logge
                     "gpu_type": final_gpu,
                     "units": str(num_units),
                     "price_per_unit": str(price_per_unit),
-                    "redsand_monthly": str(base_monthly),
-                    "redsand_yearly": str(base_monthly * 12),
-                    "redsand_3yr": str(base_monthly * 36),
-                    "margin_monthly": str(partner_margin_value),
-                    "margin_yearly": str(partner_margin_value * 12),
-                    "margin_3yr": str(partner_margin_value * 36),
-                    "customer_monthly": str(final_monthly),
-                    "customer_yearly": str(final_yearly),
-                    "customer_3yr": str(final_3yr),
+                    "redsand_monthly": str(redsand_monthly),
+                    "redsand_yearly": str(redsand_yearly),
+                    "redsand_3yr": str(redsand_3yr),
+                    "margin_monthly": str(margin_monthly),
+                    "margin_yearly": str(margin_yearly),
+                    "margin_3yr": str(margin_3yr),
+                    "customer_monthly": str(customer_monthly),
+                    "customer_yearly": str(customer_yearly),
+                    "customer_3yr": str(customer_3yr),
                     "pdf_file": filename
                 }
                 log_to_sheets(log_row)

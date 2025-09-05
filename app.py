@@ -207,23 +207,21 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             selected_use_case = st.selectbox("Select Use Case", workloads["workload_name"].unique(), key="welcome_use_case")
             num_users = st.number_input("Number of Concurrent Users", min_value=1, step=1, key="welcome_users")
 
-            if selected_use_case == "Voice Bot":
-                config_row = configs[configs["configuration_name"] == "RedBox Voice"].iloc[0]
-                preview_config = config_row["configuration_name"]
-                preview_gpu = config_row["gpu_type"]
-                users_per_unit = workloads[workloads["workload_name"] == selected_use_case].iloc[0]["users_per_gpu"]
-                preview_units = max(1, int(num_users / users_per_unit))
-            else:
-                workload_row = workloads[workloads["workload_name"] == selected_use_case].iloc[0]
-                base_gpu = workload_row["gpu_type"]
-                users_per_unit = workload_row["users_per_gpu"]
-                preview_units = max(1, int(num_users / users_per_unit))
-                upgrade = upgrade_rules[(upgrade_rules["current_gpu"] == base_gpu) & (num_users >= upgrade_rules["user_threshold"])]
-                preview_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
-                matching_configs = configs[configs["gpu_type"] == preview_gpu]
-                preview_config = matching_configs.iloc[0]["configuration_name"]
+            # --- General Auto Logic (no special Voice Bot case) ---
+            workload_row = workloads[workloads["workload_name"] == selected_use_case].iloc[0]
+            base_gpu = workload_row["gpu_type"]
+            users_per_unit = workload_row["users_per_gpu"]
+            preview_units = max(1, int(num_users / users_per_unit))
 
-        else:
+            upgrade = upgrade_rules[
+                (upgrade_rules["current_gpu"] == base_gpu) &
+                (num_users >= upgrade_rules["user_threshold"])
+            ]
+            preview_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
+            matching_configs = configs[configs["gpu_type"] == preview_gpu]
+            preview_config = matching_configs.iloc[0]["configuration_name"]
+
+        else:  # Manual mode
             preview_config = st.selectbox("Choose Configuration", configs["configuration_name"].unique(), key="manual_select")
             preview_units = st.number_input("Units", min_value=1, step=1, key="manual_qty")
             if not configs[configs["configuration_name"] == preview_config].empty:
@@ -238,6 +236,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
         st.write(f"**Configuration:** {preview_config}")
         st.write(f"**Units:** {preview_units}")
 
+        # Save to session
         st.session_state["preview_config"] = preview_config
         st.session_state["preview_gpu"] = preview_gpu
         st.session_state["preview_units"] = preview_units
@@ -258,9 +257,15 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
 
     with col_right:
         st.markdown("### 🔍 Compare Configurations")
-        compare_configs = st.multiselect("Choose configurations to compare", configs["configuration_name"].unique(), key="compare_configs_welcome")
+        compare_configs = st.multiselect(
+            "Choose configurations to compare",
+            configs["configuration_name"].unique(),
+            key="compare_configs_welcome"
+        )
         if compare_configs:
-            compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(configs, on="configuration_name", how="left")
+            compare_df = pricing[pricing["configuration_name"].isin(compare_configs)].merge(
+                configs, on="configuration_name", how="left"
+            )
             st.dataframe(compare_df.set_index("configuration_name"))
 
         st.divider()

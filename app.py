@@ -11,6 +11,7 @@ import uuid
 import gspread
 from google.oauth2.service_account import Credentials
 import time
+import math
 
 def write_debug_log(message):
     """Append debug message to /tmp/debug_log.txt."""

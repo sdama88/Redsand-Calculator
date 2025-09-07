@@ -9,3 +9,4 @@ RedBox Max (B200),32 × B200,2 × AMD EPYC (128-core),2TB DDR5 ECC,80TB NVMe + 5
 RedBox Ultra (B200),180 × B200,12 × AMD EPYC (128-core),12TB DDR5 ECC,400TB NVMe + 5PB HDD (Ceph tiered),12 × 400GbE uplinks + Switching,B200
 RedBox One (H100),8 × H100,2 × AMD EPYC (128-core),1TB DDR5-4800 ECC,8TB NVMe Gen5 SSD + 1TB RAID1 + 4TB,H100
 
+

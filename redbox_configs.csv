@@ -7,3 +7,5 @@ RedBox Max,64 × H100,2 × AMD EPYC (128-core),2TB DDR5 ECC,80TB NVMe + 500GB HD
 RedBox Ultra,360 × H100,12 × AMD EPYC (128-core),12TB DDR5 ECC,400TB NVMe + 5PB HDD (Ceph tiered),12 × 400GbE uplinks + Switching,H100
 RedBox Max (B200),32 × B200,2 × AMD EPYC (128-core),2TB DDR5 ECC,80TB NVMe + 500GB HDD (Ceph tiered),4 × 400GbE uplinks + 100Gb Interconnects,B200
 RedBox Ultra (B200),180 × B200,12 × AMD EPYC (128-core),12TB DDR5 ECC,400TB NVMe + 5PB HDD (Ceph tiered),12 × 400GbE uplinks + Switching,B200
+RedBox One (H100),8 × H100,2 × AMD EPYC (128-core),1TB DDR5-4800 ECC,8TB NVMe Gen5 SSD + 1TB RAID1 + 4TB,H100
+

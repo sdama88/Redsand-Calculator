@@ -215,7 +215,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             # --- Auto logic driven by workloads + upgrade rules ---
             workload_row = workloads[workloads["workload_name"] == selected_use_case].iloc[0]
             base_gpu = workload_row["gpu_type"]
-            users_per_unit = workload_row["users_per_gpu"]
+            users_per_unit = workload_row["users_per_unit"]
 
             # Always at least 1 unit
             preview_units = max(1, math.ceil(num_users / users_per_unit))

@@ -6,4 +6,4 @@ Fraud Detection (Bank),L40S,240,40,0.5,100,1.0
 Credit Risk Scoring,L40S,320,30,0.3,80,0.8
 Financial Report Summarisation,L40S,480,25,0.2,50,0.5
 AML Transaction Monitoring,H100,160,60,0.4,150,1.5
-Image Generation,H200,40,80,2,300,10
+Image Generation,H100,40,80,2,300,10

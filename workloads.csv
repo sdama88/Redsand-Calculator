@@ -1,8 +1,8 @@
 workload_name,gpu_type,users_per_unit,storage_gb_per_gpu_base,storage_gb_per_user,egress_gb_per_gpu_base,egress_gb_per_user
 Voice Bot,H200,31,50,1.0,100,2.0
-Chat Bot,L40S,50,20,0.2,50,0.5
-Embedding Search,L40S,200,10,0.1,20,0.2
-Fraud Detection (Bank),L40S,30,40,0.5,100,1.0
-Credit Risk Scoring,L40S,40,30,0.3,80,0.8
-Financial Report Summarisation,L40S,60,25,0.2,50,0.5
-AML Transaction Monitoring,H100,20,60,0.4,150,1.5
+Chat Bot,L40S,50,160,0.2,50,0.5
+Embedding Search,L40S,1600,10,0.1,20,0.2
+Fraud Detection (Bank),L40S,240,40,0.5,100,1.0
+Credit Risk Scoring,L40S,40,240,0.3,80,0.8
+Financial Report Summarisation,L40S,480,25,0.2,50,0.5
+AML Transaction Monitoring,H100,160,60,0.4,150,1.5

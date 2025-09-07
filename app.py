@@ -224,7 +224,7 @@ elif st.session_state["page"] == "welcome" and st.session_state.get("logged_in")
             #    (upgrade_rules["current_gpu"] == base_gpu) &
             #    (num_users >= upgrade_rules["user_threshold"])
             #]
-            preview_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
+            #preview_gpu = upgrade.iloc[0]["upgrade_gpu"] if not upgrade.empty else base_gpu
 
             # Match config by upgraded GPU
             matching_configs = configs[configs["gpu_type"] == preview_gpu]
